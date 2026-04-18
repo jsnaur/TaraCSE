@@ -7,9 +7,10 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
+  --font-sans: var(--font-inter);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-heading: var(--font-space-grotesk);
+  
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -18,15 +19,12 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
+  
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -39,6 +37,7 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -46,75 +45,105 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Spark Gamification Custom Colors */
+  --color-spark-correct-bg: var(--spark-correct-bg);
+  --color-spark-correct-text: var(--spark-correct-text);
+  --color-spark-correct-border: var(--spark-correct-border);
+  --color-spark-wrong-bg: var(--spark-wrong-bg);
+  --color-spark-wrong-text: var(--spark-wrong-text);
+  --color-spark-wrong-border: var(--spark-wrong-border);
+  --color-spark-ai-bg: var(--spark-ai-bg);
+  --color-spark-ai-text: var(--spark-ai-text);
+  --color-spark-ai-border: var(--spark-ai-border);
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* LIGHT MODE VARIABLES */
+  --background: #F0F4FF;
+  --foreground: #1E1B4B;
+  --card: #FFFFFF;
+  --card-foreground: #1E1B4B;
+  --popover: #FFFFFF;
+  --popover-foreground: #1E1B4B;
+  --primary: #4338CA;
+  --primary-foreground: #FFFFFF;
+  --secondary: #0891B2;
+  --secondary-foreground: #FFFFFF;
+  --muted: #C7D2FE;
+  --muted-foreground: #94A3B8;
+  --accent: #F59E0B;
+  --accent-foreground: #FFFFFF;
+  --destructive: #FEF2F2;
+  --destructive-foreground: #DC2626;
+  --border: #C7D2FE;
+  --input: #C7D2FE;
+  --ring: #4338CA;
+  
+  --radius: 0.75rem; /* Gamified, rounded feel */
+  
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #1E1B4B;
+  --sidebar-primary: #4338CA;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #E0E7FF;
+  --sidebar-accent-foreground: #4338CA;
+  --sidebar-border: #C7D2FE;
+  --sidebar-ring: #4338CA;
+
+  /* Spark Gamification States - Light */
+  --spark-correct-bg: #ECFDF5;
+  --spark-correct-text: #059669;
+  --spark-correct-border: #A7F3D0;
+  --spark-wrong-bg: #FEF2F2;
+  --spark-wrong-text: #DC2626;
+  --spark-wrong-border: #FECACA;
+  --spark-ai-bg: #EDE9FA;
+  --spark-ai-text: #6C63E0;
+  --spark-ai-border: #C4B5FD;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* DARK MODE VARIABLES (DEFAULT) */
+  --background: #0F0E1A;
+  --foreground: #E8E6F0;
+  --card: #1A1630;
+  --card-foreground: #E8E6F0;
+  --popover: #1A1630;
+  --popover-foreground: #E8E6F0;
+  --primary: #6C63E0;
+  --primary-foreground: #FFFFFF;
+  --secondary: #0891B2;
+  --secondary-foreground: #FFFFFF;
+  --muted: #2A2640;
+  --muted-foreground: #5B5480;
+  --accent: #F59E0B;
+  --accent-foreground: #FFFFFF;
+  --destructive: #2B0E0E;
+  --destructive-foreground: #E07070;
+  --border: #2A2640;
+  --input: #2A2640;
+  --ring: #6C63E0;
+
+  --sidebar: #13112B;
+  --sidebar-foreground: #E8E6F0;
+  --sidebar-primary: #6C63E0;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #2A2055;
+  --sidebar-accent-foreground: #E8E6F0;
+  --sidebar-border: #2A2640;
+  --sidebar-ring: #6C63E0;
+
+  /* Spark Gamification States - Dark */
+  --spark-correct-bg: #0D2B1D;
+  --spark-correct-text: #74C69D;
+  --spark-correct-border: #2D6A4F;
+  --spark-wrong-bg: #2B0E0E;
+  --spark-wrong-text: #E07070;
+  --spark-wrong-border: #6B2020;
+  --spark-ai-bg: #1B1535;
+  --spark-ai-text: #7C6FE8;
+  --spark-ai-border: #3A2D70;
 }
 
 @layer base {
@@ -126,5 +155,9 @@
   }
   html {
     @apply font-sans;
+  }
+  /* Apply Space Grotesk to all headings by default */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading tracking-[-0.03em];
   }
 }
