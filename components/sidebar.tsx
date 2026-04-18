@@ -23,7 +23,7 @@ export function Sidebar({ className = "" }: { className?: string }) {
         <div className="pt-4 pb-1.5 px-4 text-[9px] font-bold tracking-[0.12em] text-muted-foreground uppercase">
           Study
         </div>
-        <Link href="/" className="flex items-center gap-2.5 py-2 px-2.5 mx-2 rounded-md text-[13px] bg-primary/10 text-primary font-semibold transition-colors">
+        <Link href="/dashboard" className="flex items-center gap-2.5 py-2 px-2.5 mx-2 rounded-md text-[13px] bg-primary/10 text-primary font-semibold transition-colors">
           <div className="w-6.5 h-6.5 rounded flex items-center justify-center shrink-0 bg-[#2A2055] text-[#A89FE8]">
             <LayoutDashboard className="w-4 h-4" />
           </div>
@@ -65,7 +65,7 @@ export function Sidebar({ className = "" }: { className?: string }) {
           </div>
           Achievements
         </Link>
-        <Link href="#" className="flex items-center gap-2.5 py-2 px-2.5 mx-2 rounded-md text-[13px] text-muted-foreground hover:bg-sidebar-accent hover:text-foreground transition-colors">
+        <Link href="/dashboard/leaderboard" className="flex items-center gap-2.5 py-2 px-2.5 mx-2 rounded-md text-[13px] text-muted-foreground hover:bg-sidebar-accent hover:text-foreground transition-colors">
           <div className="w-6.5 h-6.5 rounded flex items-center justify-center shrink-0 bg-[#0A1F1E] text-[#60C0A8]">
             <Trophy className="w-4 h-4" />
           </div>

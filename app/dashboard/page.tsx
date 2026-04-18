@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Sidebar } from "@/components/sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Check, X, Sparkles, ArrowRight, ArrowLeft, Menu } from "lucide-react";
@@ -166,7 +167,7 @@ export default function DashboardPage() {
               <div>
                 <div className="flex items-center justify-between mb-2.5">
                   <h3 className="font-heading text-[13px] font-bold tracking-tight">Top reviewees</h3>
-                  <span className="text-[11px] text-primary cursor-pointer hover:underline">Full board &rarr;</span>
+                  <Link href="/dashboard/leaderboard" className="text-[11px] text-primary hover:underline">Full board &rarr;</Link>
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <div className="flex items-center gap-2.5 px-3 py-2 bg-card border border-border rounded-lg">
