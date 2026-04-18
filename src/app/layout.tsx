@@ -4,7 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "../components/theme-provider";
 
 export const metadata: Metadata = {
-  title: "SparkCSE - Civil Service Review",
+  title: "TaraCSE - Civil Service Review",
   description: "Gamified Civil Service Exam review application for the Philippines",
 };
 
@@ -31,5 +31,5 @@ export default function RootLayout({
         </ThemeProvider>
       </body>
     </html>
-  );
+  ); 
 }
