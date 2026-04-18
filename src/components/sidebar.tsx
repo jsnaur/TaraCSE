@@ -4,11 +4,12 @@ import {
   PieChart, Award, Trophy, Settings, Sparkles 
 } from "lucide-react";
 
-export function Sidebar() {
+// Added className prop to allow conditional hiding/styling in the main layout
+export function Sidebar({ className = "" }: { className?: string }) {
   return (
-    <aside className="w-[220px] min-w-[220px] bg-sidebar border-r border-border flex flex-col h-full overflow-y-auto transition-colors duration-200">
+    <aside className={`w-[220px] min-w-[220px] bg-sidebar border-r border-border flex flex-col h-full overflow-y-auto transition-colors duration-200 ${className}`}>
       {/* Brand */}
-      <div className="pt-5 pb-4 px-4.5 border-b border-border">
+      <div className="pt-5 pb-4 px-4.5 border-b border-border shrink-0">
         <div className="font-heading text-xl font-extrabold text-foreground tracking-tight leading-none">
           Tara<span className="text-primary">CSE</span>
         </div>
@@ -84,14 +85,14 @@ export function Sidebar() {
       </nav>
 
       {/* Sidebar Bottom (User Info) */}
-      <div className="mt-auto p-3.5 border-t border-border">
+      <div className="mt-auto p-3.5 border-t border-border shrink-0">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-full bg-primary/20 border-2 border-primary flex items-center justify-center text-[11px] font-bold text-primary shrink-0 font-heading">
             JR
           </div>
           <div>
             <div className="text-xs font-semibold text-foreground">Juan Reyes</div>
-            <div className="text-[10px] text-muted-foreground mt-px">Mag-aaral II · 620 XP</div>
+            <div className="text-[10px] text-muted-foreground mt-px">Mag-aaral II &middot; 620 XP</div>
           </div>
         </div>
       </div>
