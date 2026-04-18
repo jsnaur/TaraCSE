@@ -1,5 +1,10 @@
 {
   "css.lint.unknownAtRules": "ignore",
+  "less.lint.unknownAtRules": "ignore",
+  "scss.lint.unknownAtRules": "ignore",
+  "tailwindCSS.includeLanguages": {
+    "css": "tailwindcss"
+  },
   "files.associations": {
     "*.css": "tailwindcss"
   }

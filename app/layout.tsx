@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { inter, spaceGrotesk } from "../lib/fonts";
+import { inter, spaceGrotesk } from "@/lib/fonts";
 import "./globals.css";
-import { ThemeProvider } from "../components/theme-provider";
+import { ThemeProvider } from "@/components/theme-provider";
 
 export const metadata: Metadata = {
   title: "TaraCSE - Civil Service Review",
