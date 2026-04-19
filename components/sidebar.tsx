@@ -12,6 +12,7 @@ import {
   Award,
   Trophy,
   Settings,
+  Lock,
 } from "lucide-react";
 
 // Added className prop to allow conditional hiding/styling in the main layout
@@ -129,7 +130,7 @@ export function Sidebar({ className = "" }: { className?: string }) {
       </nav>
 
       {/* Sidebar Bottom (User Info) */}
-      <div className="mt-auto p-3.5 border-t border-border shrink-0">
+      <div className="mt-auto p-3.5 border-t border-border shrink-0 relative">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-full bg-primary/20 border-2 border-primary flex items-center justify-center text-[11px] font-bold text-primary shrink-0 font-heading">
             JR
@@ -139,6 +140,13 @@ export function Sidebar({ className = "" }: { className?: string }) {
             <div className="text-[10px] text-muted-foreground mt-px">Mag-aaral II &middot; 620 XP</div>
           </div>
         </div>
+        <Link
+          href="/admin/verifications"
+          className="absolute right-3 bottom-3 rounded-full p-2 opacity-80 text-muted-foreground hover:text-primary transition-colors"
+          aria-label="Admin verifications dashboard"
+        >
+          <Lock className="w-4 h-4" />
+        </Link>
       </div>
     </aside>
   );
