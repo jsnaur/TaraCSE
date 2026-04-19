@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Progress } from "@/components/ui/progress";
 import {
   AlertDialog,
@@ -155,6 +156,7 @@ function SubmittedScreen({
 }) {
   const answered = answers.filter((a) => a !== null).length;
   const skipped = total - answered;
+  const router = useRouter();
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
@@ -202,13 +204,23 @@ function SubmittedScreen({
           </div>
         </div>
 
-        <Button
-          size="lg"
-          className="mt-2 font-heading font-bold"
-          onClick={() => window.location.reload()}
-        >
-          Try Again
-        </Button>
+        <div className="flex gap-2 mt-2">
+          <Button
+            size="lg"
+            className="font-heading font-bold"
+            onClick={() => router.push('/dashboard/mock/test-456/results')}
+          >
+            View Results
+          </Button>
+          <Button
+            size="lg"
+            variant="outline"
+            className="font-heading font-bold"
+            onClick={() => window.location.reload()}
+          >
+            Try Again
+          </Button>
+        </div>
       </div>
     </div>
   );
