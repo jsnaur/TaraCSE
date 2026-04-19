@@ -1,3 +1,4 @@
+// components/sidebar.tsx
 "use client";
 
 import Link from "next/link";
@@ -98,19 +99,22 @@ export function Sidebar({ className = "" }: { className?: string }) {
         <div className="pt-4 pb-1.5 px-4 text-[9px] font-bold tracking-[0.12em] text-muted-foreground uppercase">
           Progress
         </div>
-        <Link href="#" className="flex items-center gap-2.5 py-2 px-2.5 mx-2 rounded-md text-[13px] text-muted-foreground hover:bg-sidebar-accent hover:text-foreground transition-colors">
+        
+        {/* UPDATE HERE: Changed Analytics href to /dashboard/analytics */}
+        <Link href="/dashboard/analytics" className={getNavClasses(isActive("/dashboard/analytics"))}>
           <div className="w-6.5 h-6.5 rounded flex items-center justify-center shrink-0 bg-[#2A1F08] text-accent">
             <PieChart className="w-4 h-4" />
           </div>
           Analytics
         </Link>
-        <Link href="#" className="flex items-center gap-2.5 py-2 px-2.5 mx-2 rounded-md text-[13px] text-muted-foreground hover:bg-sidebar-accent hover:text-foreground transition-colors">
+        
+        <Link href="#" className={getNavClasses(false)}>
           <div className="w-6.5 h-6.5 rounded flex items-center justify-center shrink-0 bg-[#1D0E2E] text-[#C080E0]">
             <Award className="w-4 h-4" />
           </div>
           Achievements
         </Link>
-        <Link href="/dashboard/leaderboard" className="flex items-center gap-2.5 py-2 px-2.5 mx-2 rounded-md text-[13px] text-muted-foreground hover:bg-sidebar-accent hover:text-foreground transition-colors">
+        <Link href="/dashboard/leaderboard" className={getNavClasses(isActive("/dashboard/leaderboard"))}>
           <div className="w-6.5 h-6.5 rounded flex items-center justify-center shrink-0 bg-[#0A1F1E] text-[#60C0A8]">
             <Trophy className="w-4 h-4" />
           </div>
@@ -121,7 +125,7 @@ export function Sidebar({ className = "" }: { className?: string }) {
         <div className="pt-4 pb-1.5 px-4 text-[9px] font-bold tracking-[0.12em] text-muted-foreground uppercase">
           Account
         </div>
-        <Link href="#" className="flex items-center gap-2.5 py-2 px-2.5 mx-2 rounded-md text-[13px] text-muted-foreground hover:bg-sidebar-accent hover:text-foreground transition-colors">
+        <Link href="/dashboard/settings" className={getNavClasses(isActive("/dashboard/settings"))}>
           <div className="w-6.5 h-6.5 rounded flex items-center justify-center shrink-0 bg-card text-muted-foreground border border-border">
             <Settings className="w-4 h-4" />
           </div>
