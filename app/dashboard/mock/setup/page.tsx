@@ -210,7 +210,7 @@ export default function MockSetupPage() {
 
   const handleBegin = () => {
     if (!canStart) return;
-    router.push(`/dashboard/mock/session/new?level=${examLevel}`);
+    router.push('/dashboard/mock/test-456');
   };
 
   return (

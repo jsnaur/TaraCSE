@@ -1,11 +1,66 @@
+"use client";
+
 import Link from "next/link";
-import { 
-  LayoutDashboard, Play, Layers, BookOpen, 
-  PieChart, Award, Trophy, Settings, Sparkles 
+import { usePathname } from "next/navigation";
+import {
+  LayoutDashboard,
+  BrainCircuit,
+  Timer,
+  Layers,
+  BookOpen,
+  PieChart,
+  Award,
+  Trophy,
+  Settings,
 } from "lucide-react";
 
 // Added className prop to allow conditional hiding/styling in the main layout
 export function Sidebar({ className = "" }: { className?: string }) {
+  const pathname = usePathname();
+
+  const navItems = [
+    {
+      href: "/dashboard",
+      label: "Dashboard",
+      icon: LayoutDashboard,
+      iconBg: "bg-[#2A2055] text-[#A89FE8]",
+    },
+    {
+      href: "/dashboard/practice",
+      label: "Practice Mode",
+      icon: BrainCircuit,
+      iconBg: "bg-[#0B1D24] text-[#7DD9D8]",
+    },
+    {
+      href: "/dashboard/mock",
+      label: "Mock Exams",
+      icon: Timer,
+      iconBg: "bg-[#1B1125] text-[#D9B7FF]",
+    },
+    {
+      href: "#",
+      label: "Flash Cards",
+      icon: Layers,
+      iconBg: "bg-[var(--spark-wrong-bg)] text-[var(--spark-wrong-text)]",
+    },
+    {
+      href: "#",
+      label: "Reviewers",
+      icon: BookOpen,
+      iconBg: "bg-[#0A1F2E] text-[#6BA3E0]",
+    },
+  ];
+
+  const getNavClasses = (active: boolean) =>
+    `flex items-center gap-2.5 py-2 px-2.5 mx-2 rounded-md text-[13px] transition-colors ${
+      active
+        ? "bg-primary/10 text-primary font-semibold"
+        : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+    }`;
+
+  const isActive = (href: string) =>
+    pathname === href || pathname?.startsWith(`${href}/`);
+
   return (
     <aside className={`w-[220px] min-w-[220px] bg-sidebar border-r border-border flex flex-col h-full overflow-y-auto transition-colors duration-200 ${className}`}>
       {/* Brand */}
@@ -23,31 +78,20 @@ export function Sidebar({ className = "" }: { className?: string }) {
         <div className="pt-4 pb-1.5 px-4 text-[9px] font-bold tracking-[0.12em] text-muted-foreground uppercase">
           Study
         </div>
-        <Link href="/dashboard" className="flex items-center gap-2.5 py-2 px-2.5 mx-2 rounded-md text-[13px] bg-primary/10 text-primary font-semibold transition-colors">
-          <div className="w-6.5 h-6.5 rounded flex items-center justify-center shrink-0 bg-[#2A2055] text-[#A89FE8]">
-            <LayoutDashboard className="w-4 h-4" />
-          </div>
-          Dashboard
-          <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />
-        </Link>
-        <Link href="#" className="flex items-center gap-2.5 py-2 px-2.5 mx-2 rounded-md text-[13px] text-muted-foreground hover:bg-sidebar-accent hover:text-foreground transition-colors">
-          <div className="w-6.5 h-6.5 rounded flex items-center justify-center shrink-0 bg-[var(--spark-correct-bg)] text-[var(--spark-correct-text)]">
-            <Play className="w-4 h-4" />
-          </div>
-          Mock Exam
-        </Link>
-        <Link href="#" className="flex items-center gap-2.5 py-2 px-2.5 mx-2 rounded-md text-[13px] text-muted-foreground hover:bg-sidebar-accent hover:text-foreground transition-colors">
-          <div className="w-6.5 h-6.5 rounded flex items-center justify-center shrink-0 bg-[var(--spark-wrong-bg)] text-[var(--spark-wrong-text)]">
-            <Layers className="w-4 h-4" />
-          </div>
-          Flash Cards
-        </Link>
-        <Link href="#" className="flex items-center gap-2.5 py-2 px-2.5 mx-2 rounded-md text-[13px] text-muted-foreground hover:bg-sidebar-accent hover:text-foreground transition-colors">
-          <div className="w-6.5 h-6.5 rounded flex items-center justify-center shrink-0 bg-[#0A1F2E] text-[#6BA3E0]">
-            <BookOpen className="w-4 h-4" />
-          </div>
-          Reviewers
-        </Link>
+        {navItems.map((item) => {
+          const active = item.href !== "#" && isActive(item.href);
+          const Icon = item.icon;
+
+          return (
+            <Link key={item.label} href={item.href} className={getNavClasses(active)}>
+              <div className={`w-6.5 h-6.5 rounded flex items-center justify-center shrink-0 ${item.iconBg}`}>
+                <Icon className="w-4 h-4" />
+              </div>
+              {item.label}
+              {active && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />}
+            </Link>
+          );
+        })}
 
         {/* Progress Section */}
         <div className="pt-4 pb-1.5 px-4 text-[9px] font-bold tracking-[0.12em] text-muted-foreground uppercase">

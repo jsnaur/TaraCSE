@@ -155,12 +155,7 @@ export default function PracticeSetupPage() {
 
   const handleStart = () => {
     if (!allValid) return;
-    const params = new URLSearchParams({
-      level: examLevel!,
-      categories: categories.join(","),
-      items: String(itemCount),
-    });
-    router.push(`/dashboard/practice/session/new?${params}`);
+    router.push('/dashboard/practice/test-123');
   };
 
   // summary label helpers
