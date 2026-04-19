@@ -7,8 +7,6 @@ import {
   LayoutDashboard,
   BrainCircuit,
   Timer,
-  Layers,
-  BookOpen,
   PieChart,
   Award,
   Trophy,
@@ -38,18 +36,6 @@ export function Sidebar({ className = "" }: { className?: string }) {
       label: "Mock Exams",
       icon: Timer,
       iconBg: "bg-[#1B1125] text-[#D9B7FF]",
-    },
-    {
-      href: "#",
-      label: "Flash Cards",
-      icon: Layers,
-      iconBg: "bg-[var(--spark-wrong-bg)] text-[var(--spark-wrong-text)]",
-    },
-    {
-      href: "#",
-      label: "Reviewers",
-      icon: BookOpen,
-      iconBg: "bg-[#0A1F2E] text-[#6BA3E0]",
     },
   ];
 
@@ -100,7 +86,6 @@ export function Sidebar({ className = "" }: { className?: string }) {
           Progress
         </div>
         
-        {/* UPDATE HERE: Changed Analytics href to /dashboard/analytics */}
         <Link href="/dashboard/analytics" className={getNavClasses(isActive("/dashboard/analytics"))}>
           <div className="w-6.5 h-6.5 rounded flex items-center justify-center shrink-0 bg-[#2A1F08] text-accent">
             <PieChart className="w-4 h-4" />
