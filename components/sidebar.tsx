@@ -12,7 +12,9 @@ import {
   Trophy,
   Settings,
   Lock,
+  LogOut,
 } from "lucide-react";
+import { logout } from "@/app/(auth)/actions";
 
 // Added className prop to allow conditional hiding/styling in the main layout
 export function Sidebar({ className = "" }: { className?: string }) {
@@ -120,19 +122,32 @@ export function Sidebar({ className = "" }: { className?: string }) {
 
       {/* Sidebar Bottom (User Info) */}
       <div className="mt-auto p-3.5 border-t border-border shrink-0 relative">
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 pr-16">
           <div className="w-8 h-8 rounded-full bg-primary/20 border-2 border-primary flex items-center justify-center text-[11px] font-bold text-primary shrink-0 font-heading">
             JR
           </div>
-          <div>
-            <div className="text-xs font-semibold text-foreground">Juan Reyes</div>
-            <div className="text-[10px] text-muted-foreground mt-px">Mag-aaral II &middot; 620 XP</div>
+          <div className="truncate">
+            <div className="text-xs font-semibold text-foreground truncate">Juan Reyes</div>
+            <div className="text-[10px] text-muted-foreground mt-px truncate">Mag-aaral II &middot; 620 XP</div>
           </div>
         </div>
+        
+        <form action={logout} className="absolute right-12 bottom-3">
+          <button
+            type="submit"
+            className="rounded-full p-2 opacity-80 text-muted-foreground hover:text-red-500 transition-colors"
+            aria-label="Log out"
+            title="Log out"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
+        </form>
+
         <Link
           href="/admin/verifications"
           className="absolute right-3 bottom-3 rounded-full p-2 opacity-80 text-muted-foreground hover:text-primary transition-colors"
           aria-label="Admin verifications dashboard"
+          title="Admin Tools"
         >
           <Lock className="w-4 h-4" />
         </Link>

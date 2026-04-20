@@ -84,3 +84,11 @@ export async function signup(formData: FormData) {
 
   redirect("/dashboard");
 }
+
+export async function logout() {
+  const cookieStore = await cookies();
+  cookieStore.delete("sb-access-token");
+  cookieStore.delete("sb-refresh-token");
+  
+  redirect("/login");
+}
