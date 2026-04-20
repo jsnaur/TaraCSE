@@ -1,64 +1,73 @@
 # TaraCSE
 
-TaraCSE is a web application designed to help civil service exam candidates prepare with adaptive practice, timed mock exams, and performance analytics. It combines an interactive learning experience with data-driven insights to help users identify strengths, target weaknesses, and improve readiness.
+TaraCSE is a web application created for civil service exam candidates who need a focused and reliable study platform. It delivers structured practice, timed mock exams, and performance analytics to reduce uncertainty and improve preparation efficiency.
 
-## Key Features
+## Problem Statement
 
-- Practice Mode with instant feedback and self-paced review
-- Full-length Mock Exam Mode with a timed exam environment
-- Performance analytics across subject areas, score trends, and weak-spot tracking
-- AI-generated explanations to help users understand the reasoning behind each answer
-- Free and premium plan structure for incremental access to advanced content
-- User accounts with login, registration, and dashboard access
-- Admin verification screens and upgrade workflows for premium access management
-- Policy pages for Terms of Service and Privacy Policy
+Many CSE candidates rely on static review materials, unsupported practice questions, and unstructured study routines. TaraCSE addresses this by providing a single web app that:
+
+- simulates real exam conditions
+- tracks progress across topics
+- identifies weak areas with analytics
+- explains answers with rationale
+- reduces reliance on informal or outdated materials
+
+## Features
+
+### Practice Mode
+
+- Untimed, topic-focused practice sessions
+- immediate answer validation and feedback
+- daily question limits for consistent study habits
+
+### Mock Exam Mode
+
+- full-length exams with a timer
+- exam conditions simulated in the browser
+- results and review after completion
+
+### Analytics and Performance
+
+- score tracking and trend insights
+- subject-level performance breakdowns
+- weak-spot detection for targeted review
+
+### AI Explanations
+
+- contextual answer explanations for each question
+- rationale designed to reinforce understanding, not just memorization
+
+### Subscription Model
+
+- free access for introductory practice
+- premium upgrade unlocks unlimited mock exams, advanced analytics, and a full question bank
+
+### User Experience
+
+- account login and registration
+- dashboard access for personal progress
+- policy pages for terms of service and privacy
+- admin verification and premium upgrade workflow
 
 ## Technology Stack
 
-- Next.js 16
-- React 19
-- TypeScript
-- Tailwind CSS 4
-- Supabase JS for authentication and backend data access
-- ShadCN UI and Radix UI primitives
-- Framer Motion for interface animation
-- Lucide icons
+| Layer | Technology | Purpose |
+| ----- | ---------- | ------- |
+| Framework | Next.js 16 | App routing, server rendering, page structure |
+| UI | Tailwind CSS 4 | Styling and responsive design |
+| Language | TypeScript | Type safety and developer tooling |
+| Data & Auth | Supabase JS | Authentication and backend integration |
+| Components | ShadCN UI, Radix UI | Reusable UI primitives |
+| Interaction | Framer Motion | Animations and motion effects |
+| Icons | Lucide React | Vector iconography |
 
-## Project Structure
-
-- `app/` – Next.js app routes and page components
-- `app/(auth)/` – authentication layouts and actions
-- `app/dashboard/` – authenticated user dashboard pages
-- `app/dashboard/practice/` – practice sessions and review routes
-- `app/dashboard/mock/` – mock exam workflow and results
-- `app/dashboard/analytics/` – analytics and performance reporting
-- `app/dashboard/leaderboard/` – leaderboard view
-- `app/admin/verifications/` – admin verification and upgrade flows
-- `app/terms/page.tsx` – Terms of Service page
-- `app/privacy/page.tsx` – Privacy Policy page
-
-## Routes
-
-- `/` – landing page
-- `/login` – login page
-- `/register` – registration page
-- `/dashboard` – main user dashboard
-- `/dashboard/practice` – practice center
-- `/dashboard/mock` – mock exam center
-- `/dashboard/analytics` – performance analytics
-- `/dashboard/leaderboard` – leaderboard
-- `/pricing` – pricing overview
-- `/terms` – terms of service
-- `/privacy` – privacy policy
-- `/admin/verifications` – verification workflow
-
-## Setup and Local Development
+## Setup
 
 ### Prerequisites
 
-- Node.js 20+ recommended
-- npm installed
-- Supabase project for authentication and data storage
+- Node.js 20 or later
+- npm
+- Supabase project for authentication and data access
 
 ### Install dependencies
 
@@ -66,32 +75,36 @@ TaraCSE is a web application designed to help civil service exam candidates prep
 npm install
 ```
 
-### Configure environment variables
+### Environment variables
 
-Create a `.env.local` file in the project root and provide the Supabase settings:
+Create a `.env.local` file in the project root with:
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
 ```
 
-If your application requires additional environment values, add them to the same file.
+Additional environment values may be needed depending on your Supabase or deployment setup.
 
-### Run the development server
+## Development
+
+Start the development server:
 
 ```bash
 npm run dev
 ```
 
-Open `http://localhost:3000` in your browser.
+Open `http://localhost:3000` in the browser.
 
-### Build for production
+## Production
+
+Build the application:
 
 ```bash
 npm run build
 ```
 
-### Start production server
+Start the production server:
 
 ```bash
 npm start
@@ -99,10 +112,6 @@ npm start
 
 ## Notes
 
-- This repository is configured for a Next.js App Router project.
-- The user interface is built with reusable components and responsive layout utilities.
-- Placeholder images and illustrative graphics in the application are examples and may be replaced with final assets.
-
-## Contribution
-
-For improvements or updates, edit the relevant files in `app/`, then verify the application behavior locally before committing.
+- The app uses the Next.js App Router.
+- Placeholder images and sample text are for demonstration and can be replaced with production assets.
+- Verify Supabase credentials and project settings before deployment.
