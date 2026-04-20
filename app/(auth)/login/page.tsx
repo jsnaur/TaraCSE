@@ -2,10 +2,27 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Eye, EyeOff, LogIn, Mail, Lock } from "lucide-react"; // Removed Chrome
+import { Eye, EyeOff, LogIn, Mail, Lock, Loader2 } from "lucide-react";
+import { login } from "../actions";
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setIsLoading(true);
+    setError("");
+
+    const formData = new FormData(e.currentTarget);
+    const res = await login(formData);
+
+    if (res?.error) {
+      setError(res.error);
+      setIsLoading(false);
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -58,7 +75,13 @@ export default function LoginPage() {
         </div>
 
         {/* Form */}
-        <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+        <form className="space-y-4" onSubmit={handleSubmit}>
+          {error && (
+            <div className="p-3 text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-xl">
+              {error}
+            </div>
+          )}
+
           {/* Email */}
           <div className="space-y-1.5">
             <label
@@ -71,8 +94,10 @@ export default function LoginPage() {
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
               <input
                 id="email"
+                name="email"
                 type="email"
                 autoComplete="email"
+                required
                 placeholder="you@example.com"
                 className="w-full rounded-xl border border-input bg-background pl-10 pr-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all duration-200"
               />
@@ -99,8 +124,10 @@ export default function LoginPage() {
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
               <input
                 id="password"
+                name="password"
                 type={showPassword ? "text" : "password"}
                 autoComplete="current-password"
+                required
                 placeholder="Enter your password"
                 className="w-full rounded-xl border border-input bg-background pl-10 pr-11 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all duration-200"
               />
@@ -122,10 +149,11 @@ export default function LoginPage() {
           {/* Submit */}
           <button
             type="submit"
-            className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-sm py-2.5 px-4 shadow-lg shadow-primary/25 hover:shadow-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-all duration-200 active:scale-[0.98]"
+            disabled={isLoading}
+            className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-primary/90 disabled:opacity-70 disabled:cursor-not-allowed text-primary-foreground font-semibold text-sm py-2.5 px-4 shadow-lg shadow-primary/25 hover:shadow-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-all duration-200 active:scale-[0.98]"
           >
-            <LogIn className="w-4 h-4" />
-            Sign In
+            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
+            {isLoading ? "Signing in..." : "Sign In"}
           </button>
         </form>
       </div>

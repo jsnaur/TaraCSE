@@ -5,10 +5,10 @@ import { Sidebar } from "@/components/sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Check, X, Sparkles, ArrowRight, ArrowLeft, Menu, ShieldCheck, ClipboardList, ChevronRight } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-
-const STORAGE_KEY = "taracse_exam_level";
+import { getProfile, saveExamCategory } from "./actions";
 
 type ExamLevel = "professional" | "subprofessional";
 
@@ -98,7 +98,6 @@ function OnboardingModal({ onComplete }: { onComplete: (level: ExamLevel) => voi
           {LEVEL_OPTIONS.map((opt) => {
             const isSelected = selected === opt.id;
             const isHovered = hovered === opt.id;
-            const active = isSelected || isHovered;
 
             return (
               <button
@@ -201,28 +200,47 @@ function OnboardingModal({ onComplete }: { onComplete: (level: ExamLevel) => voi
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [username, setUsername] = useState("Student");
 
-  // Check localStorage on mount
+  // Fetch profile on mount
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (!saved) {
-        setShowOnboarding(true);
+    async function loadProfile() {
+      const res = await getProfile();
+      
+      if (res?.error) {
+        // Kick back to login if not authenticated
+        router.push("/login");
+        return;
       }
-    } catch {
-      // localStorage not available; skip onboarding
+
+      if (res?.profile) {
+        setUsername(res.profile.username || "Student");
+        // Show modal if they haven't picked a path yet
+        if (!res.profile.exam_category) {
+          setShowOnboarding(true);
+        }
+      }
+      setIsLoading(false);
     }
-  }, []);
+    loadProfile();
+  }, [router]);
 
   function handleOnboardingComplete(level: ExamLevel) {
-    try {
-      localStorage.setItem(STORAGE_KEY, level);
-    } catch {
-      // ignore
+    // Map the ID to the string we want to save in the database
+    const option = LEVEL_OPTIONS.find((o) => o.id === level);
+    if (option) {
+      saveExamCategory(option.label); // Fire and forget update to DB
     }
     setShowOnboarding(false);
+  }
+
+  // Prevent UI flash while checking auth and DB state
+  if (isLoading) {
+    return <div className="flex h-screen w-full bg-background" />;
   }
 
   return (
@@ -273,7 +291,7 @@ export default function DashboardPage() {
           <div className="bg-card border border-border rounded-xl p-4 md:p-5 flex flex-col-reverse md:grid md:grid-cols-[1fr_auto] gap-5 items-center md:items-center text-center md:text-left">
             <div className="w-full">
               <div className="text-xs text-muted-foreground mb-0.5">Magandang umaga,</div>
-              <div className="font-heading text-[22px] font-extrabold tracking-tight mb-1.5">Juan Reyes</div>
+              <div className="font-heading text-[22px] font-extrabold tracking-tight mb-1.5">{username}</div>
               <div className="text-xs text-muted-foreground leading-relaxed max-w-[460px] mx-auto md:mx-0">
                 You&apos;re 62% toward <strong className="font-semibold text-foreground">Dalubhasa</strong> rank. Complete today&apos;s exam set to earn +120 XP and unlock your next achievement badge.
               </div>
@@ -396,7 +414,7 @@ export default function DashboardPage() {
                   <div className="flex items-center gap-2.5 px-3 py-2 bg-primary/10 border border-primary rounded-lg">
                     <div className="font-heading text-[13px] font-extrabold min-w-[20px] text-primary">8</div>
                     <div className="w-6.5 h-6.5 rounded-full bg-primary/20 text-primary border-2 border-primary flex items-center justify-center text-[9px] font-bold font-heading shrink-0">JR</div>
-                    <div className="text-xs font-semibold flex-1 text-primary">Juan R. (you)</div>
+                    <div className="text-xs font-semibold flex-1 text-primary">{username} (you)</div>
                     <div className="text-[11px] font-bold text-primary/80">620 XP</div>
                   </div>
                 </div>

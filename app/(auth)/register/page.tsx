@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Eye, EyeOff, UserPlus, Mail, Lock, User, CheckCircle2 } from "lucide-react";
+import { Eye, EyeOff, UserPlus, Mail, Lock, User, CheckCircle2, Loader2 } from "lucide-react";
+import { signup } from "../actions";
 
 function PasswordStrengthBar({ password }: { password: string }) {
   const getStrength = (pw: string) => {
@@ -61,9 +62,32 @@ export default function RegisterPage() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [username, setUsername] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const passwordsMatch = confirm.length > 0 && password === confirm;
   const passwordsMismatch = confirm.length > 0 && password !== confirm;
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (passwordsMismatch) {
+      setError("Passwords do not match");
+      return;
+    }
+    
+    setIsLoading(true);
+    setError("");
+
+    const formData = new FormData(e.currentTarget);
+    formData.append("username", username);
+
+    const res = await signup(formData);
+    if (res?.error) {
+      setError(res.error);
+      setIsLoading(false);
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -79,22 +103,32 @@ export default function RegisterPage() {
 
       {/* Card */}
       <div className="rounded-2xl border border-border bg-card p-6 sm:p-8 shadow-xl shadow-black/20 space-y-5">
-        <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
-          {/* Full Name */}
+        <form className="space-y-4" onSubmit={handleSubmit}>
+          {error && (
+            <div className="p-3 text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-xl">
+              {error}
+            </div>
+          )}
+
+          {/* Username */}
           <div className="space-y-1.5">
             <label
-              htmlFor="fullname"
+              htmlFor="username"
               className="block text-sm font-medium text-foreground"
             >
-              Full Name
+              Username
             </label>
             <div className="relative">
               <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
               <input
-                id="fullname"
+                id="username"
+                name="username"
                 type="text"
-                autoComplete="name"
-                placeholder="Juan dela Cruz"
+                required
+                autoComplete="username"
+                placeholder="exam_ace99"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 className="w-full rounded-xl border border-input bg-background pl-10 pr-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all duration-200"
               />
             </div>
@@ -112,7 +146,9 @@ export default function RegisterPage() {
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
               <input
                 id="email"
+                name="email"
                 type="email"
+                required
                 autoComplete="email"
                 placeholder="you@example.com"
                 className="w-full rounded-xl border border-input bg-background pl-10 pr-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all duration-200"
@@ -132,7 +168,9 @@ export default function RegisterPage() {
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
               <input
                 id="password"
+                name="password"
                 type={showPassword ? "text" : "password"}
+                required
                 autoComplete="new-password"
                 placeholder="At least 8 characters"
                 value={password}
@@ -168,6 +206,7 @@ export default function RegisterPage() {
               <input
                 id="confirm"
                 type={showConfirm ? "text" : "password"}
+                required
                 autoComplete="new-password"
                 placeholder="Repeat your password"
                 value={confirm}
@@ -198,11 +237,6 @@ export default function RegisterPage() {
                 </button>
               </div>
             </div>
-            {passwordsMismatch && (
-              <p className="text-xs text-red-500 font-medium">
-                Passwords do not match.
-              </p>
-            )}
           </div>
 
           {/* Terms notice */}
@@ -227,10 +261,11 @@ export default function RegisterPage() {
           {/* Submit */}
           <button
             type="submit"
-            className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-sm py-2.5 px-4 shadow-lg shadow-primary/25 hover:shadow-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-all duration-200 active:scale-[0.98] mt-2"
+            disabled={isLoading}
+            className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-primary/90 disabled:opacity-70 disabled:cursor-not-allowed text-primary-foreground font-semibold text-sm py-2.5 px-4 shadow-lg shadow-primary/25 hover:shadow-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-all duration-200 active:scale-[0.98] mt-2"
           >
-            <UserPlus className="w-4 h-4" />
-            Create Account
+            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+            {isLoading ? "Creating Account..." : "Create Account"}
           </button>
         </form>
       </div>
