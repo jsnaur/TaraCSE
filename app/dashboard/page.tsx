@@ -3,16 +3,233 @@
 import Link from "next/link";
 import { Sidebar } from "@/components/sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Check, X, Sparkles, ArrowRight, ArrowLeft, Menu } from "lucide-react";
-import { useState } from "react";
+import { Check, X, Sparkles, ArrowRight, ArrowLeft, Menu, ShieldCheck, ClipboardList, ChevronRight } from "lucide-react";
+import { useState, useEffect } from "react";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 
+const STORAGE_KEY = "taracse_exam_level";
+
+type ExamLevel = "professional" | "subprofessional";
+
+interface LevelOption {
+  id: ExamLevel;
+  label: string;
+  tagline: string;
+  description: string;
+  subjects: string[];
+  badge: string;
+  difficulty: string;
+  accentClass: string;
+}
+
+const LEVEL_OPTIONS: LevelOption[] = [
+  {
+    id: "professional",
+    label: "Professional",
+    tagline: "Full exam coverage",
+    description: "For bachelor's degree holders targeting career advancement in government service.",
+    subjects: ["Verbal Ability", "Numerical Ability", "Analytical Ability", "General Information"],
+    badge: "Most common",
+    difficulty: "Higher",
+    accentClass: "professional",
+  },
+  {
+    id: "subprofessional",
+    label: "Subprofessional",
+    tagline: "Focused track",
+    description: "For applicants targeting first-level positions with clerical and operational roles.",
+    subjects: ["Verbal Ability", "Numerical Ability", "Clerical Operations", "General Information"],
+    badge: "First-level",
+    difficulty: "Standard",
+    accentClass: "subprofessional",
+  },
+];
+
+function OnboardingModal({ onComplete }: { onComplete: (level: ExamLevel) => void }) {
+  const [hovered, setHovered] = useState<ExamLevel | null>(null);
+  const [selected, setSelected] = useState<ExamLevel | null>(null);
+  const [confirming, setConfirming] = useState(false);
+
+  function handleSelect(id: ExamLevel) {
+    setSelected(id);
+  }
+
+  function handleConfirm() {
+    if (!selected) return;
+    setConfirming(true);
+    setTimeout(() => onComplete(selected), 480);
+  }
+
+  return (
+    /* Backdrop */
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.65)", backdropFilter: "blur(3px)" }}
+    >
+      {/* Modal shell */}
+      <div
+        className={`
+          w-full max-w-[560px] bg-card border border-border rounded-2xl overflow-hidden shadow-2xl
+          transition-all duration-500
+          ${confirming ? "scale-95 opacity-0" : "scale-100 opacity-100"}
+        `}
+      >
+        {/* Header band */}
+        <div className="px-6 pt-7 pb-5 border-b border-border">
+          {/* Logo / Brand mark */}
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-6 h-6 rounded bg-primary flex items-center justify-center shrink-0">
+              <Sparkles className="w-3.5 h-3.5 text-primary-foreground" />
+            </div>
+            <span className="font-heading text-[13px] font-bold tracking-tight text-primary">TaraCSE</span>
+          </div>
+
+          <h1 className="font-heading text-[22px] font-extrabold tracking-tight leading-tight mb-1">
+            Choose your exam path
+          </h1>
+          <p className="text-[13px] text-muted-foreground leading-relaxed max-w-[400px]">
+            Select the Civil Service Examination level you&apos;re preparing for. You can update this later in Settings.
+          </p>
+        </div>
+
+        {/* Option cards */}
+        <div className="p-5 flex flex-col sm:flex-row gap-3">
+          {LEVEL_OPTIONS.map((opt) => {
+            const isSelected = selected === opt.id;
+            const isHovered = hovered === opt.id;
+            const active = isSelected || isHovered;
+
+            return (
+              <button
+                key={opt.id}
+                onClick={() => handleSelect(opt.id)}
+                onMouseEnter={() => setHovered(opt.id)}
+                onMouseLeave={() => setHovered(null)}
+                className={`
+                  relative flex-1 text-left rounded-xl border p-4 transition-all duration-150 outline-none
+                  focus-visible:ring-2 focus-visible:ring-primary/60
+                  ${isSelected
+                    ? "border-primary bg-primary/5 shadow-sm"
+                    : "border-border bg-sidebar hover:border-primary/40 hover:bg-card"
+                  }
+                `}
+              >
+                {/* Selection indicator ring */}
+                <div
+                  className={`absolute top-3.5 right-3.5 w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all duration-150
+                    ${isSelected ? "border-primary bg-primary" : "border-border bg-card"}`}
+                >
+                  {isSelected && <Check className="w-2.5 h-2.5 text-primary-foreground" strokeWidth={3} />}
+                </div>
+
+                {/* Icon */}
+                <div
+                  className={`w-9 h-9 rounded-lg mb-3 flex items-center justify-center transition-colors
+                    ${isSelected ? "bg-primary/15" : "bg-border/50"}`}
+                >
+                  {opt.id === "professional"
+                    ? <ShieldCheck className={`w-5 h-5 transition-colors ${isSelected ? "text-primary" : "text-muted-foreground"}`} />
+                    : <ClipboardList className={`w-5 h-5 transition-colors ${isSelected ? "text-primary" : "text-muted-foreground"}`} />
+                  }
+                </div>
+
+                {/* Badge */}
+                <div className="mb-1.5">
+                  <span
+                    className={`inline-block text-[9px] font-bold tracking-[0.08em] uppercase px-2 py-0.5 rounded-full
+                      ${isSelected ? "bg-primary/10 text-primary" : "bg-border text-muted-foreground"}`}
+                  >
+                    {opt.badge}
+                  </span>
+                </div>
+
+                <div className="font-heading text-[16px] font-extrabold tracking-tight mb-0.5">{opt.label}</div>
+                <div className={`text-[11px] font-semibold mb-2 ${isSelected ? "text-primary" : "text-muted-foreground"}`}>
+                  {opt.tagline}
+                </div>
+                <p className="text-[11px] text-muted-foreground leading-relaxed mb-3">
+                  {opt.description}
+                </p>
+
+                {/* Subject list */}
+                <ul className="flex flex-col gap-1">
+                  {opt.subjects.map((s) => (
+                    <li key={s} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                      <div className={`w-1 h-1 rounded-full shrink-0 ${isSelected ? "bg-primary" : "bg-muted-foreground/40"}`} />
+                      {s}
+                    </li>
+                  ))}
+                </ul>
+
+                {/* Difficulty chip */}
+                <div className="mt-3 pt-3 border-t border-border flex items-center justify-between">
+                  <span className="text-[10px] text-muted-foreground">Difficulty</span>
+                  <span className={`text-[10px] font-bold ${isSelected ? "text-primary" : "text-muted-foreground"}`}>
+                    {opt.difficulty}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 pb-5 flex items-center justify-between gap-3">
+          <p className="text-[10px] text-muted-foreground leading-relaxed hidden sm:block">
+            This sets your study plan, practice questions, and mock exams.
+          </p>
+          <button
+            onClick={handleConfirm}
+            disabled={!selected}
+            className={`
+              ml-auto flex items-center gap-2 px-5 py-2.5 rounded-lg font-heading text-[13px] font-bold tracking-tight
+              transition-all duration-150 shrink-0
+              ${selected
+                ? "bg-primary text-primary-foreground hover:opacity-90 shadow-sm"
+                : "bg-border text-muted-foreground cursor-not-allowed"
+              }
+            `}
+          >
+            Start reviewing
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  // Check localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (!saved) {
+        setShowOnboarding(true);
+      }
+    } catch {
+      // localStorage not available; skip onboarding
+    }
+  }, []);
+
+  function handleOnboardingComplete(level: ExamLevel) {
+    try {
+      localStorage.setItem(STORAGE_KEY, level);
+    } catch {
+      // ignore
+    }
+    setShowOnboarding(false);
+  }
 
   return (
     <div className="flex h-screen w-full bg-background text-foreground overflow-hidden font-sans transition-colors duration-200">
+      {/* Onboarding Modal */}
+      {showOnboarding && <OnboardingModal onComplete={handleOnboardingComplete} />}
+
       {/* Desktop Sidebar - Hidden on mobile, flex on md and above */}
       <Sidebar className="hidden md:flex" />
 
