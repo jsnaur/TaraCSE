@@ -108,16 +108,31 @@ export function Sidebar({ className = "" }: { className?: string }) {
           Leaderboard
         </Link>
 
-        {/* Account Section */}
-        <div className="pt-4 pb-1.5 px-4 text-[9px] font-bold tracking-[0.12em] text-muted-foreground uppercase">
-          Account
-        </div>
         <Link href="/dashboard/settings" className={getNavClasses(isActive("/dashboard/settings"))}>
           <div className="w-6.5 h-6.5 rounded flex items-center justify-center shrink-0 bg-card text-muted-foreground border border-border">
             <Settings className="w-4 h-4" />
           </div>
           Settings
         </Link>
+
+        <Link href="/dashboard/settings" className={getNavClasses(isActive("/dashboard/settings"))}>
+          <div className="w-6.5 h-6.5 rounded flex items-center justify-center shrink-0 bg-card text-muted-foreground border border-border">
+            <Settings className="w-4 h-4" />
+          </div>
+          Settings
+        </Link>
+
+        <Link href="/dashboard/settings" className={getNavClasses(isActive("/dashboard/settings"))}>
+          <div className="w-6.5 h-6.5 rounded flex items-center justify-center shrink-0 bg-card text-muted-foreground border border-border">
+            <Settings className="w-4 h-4" />
+          </div>
+          Settings
+        </Link>
+
+        {/* Account Section */}
+        <div className="pt-4 pb-1.5 px-4 text-[9px] font-bold tracking-[0.12em] text-muted-foreground uppercase">
+          Account
+        </div>
       </nav>
 
       {/* Sidebar Bottom (User Info) */}
