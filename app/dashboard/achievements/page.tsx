@@ -19,7 +19,11 @@ import {
   Shield,
   Swords,
   Sparkles,
+  Menu,
 } from "lucide-react";
+import { Sidebar } from "@/components/sidebar";
+import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -562,27 +566,47 @@ export default function AchievementsDashboard() {
   const inProgressCount = ACHIEVEMENTS.filter((a) => !a.unlocked && a.progress > 0).length;
 
   return (
-    <div className="min-h-screen bg-background px-4 py-8 sm:px-6 lg:px-8">
-      <div className="max-w-5xl mx-auto space-y-6">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-        >
-          <div className="flex items-center gap-2 mb-1">
-            <Star className="w-5 h-5 text-accent" />
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
-              TaraCSE
-            </span>
-          </div>
-          <h1 className="font-heading text-4xl font-bold text-foreground tracking-tight">
-            Achievements
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Track your progress and earn rewards on your path to success.
-          </p>
-        </motion.div>
+    <div className="flex h-screen w-full bg-background text-foreground overflow-hidden">
+      <Sidebar className="hidden md:flex" />
+
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Mobile Header */}
+        <div className="px-4 md:px-5 h-[52px] min-h-[52px] border-b border-border flex items-center gap-3 bg-background transition-colors duration-200">
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="md:hidden -ml-2 text-muted-foreground shrink-0">
+                <Menu className="w-5 h-5" />
+                <span className="sr-only">Toggle navigation menu</span>
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="p-0 w-[220px] border-r-0">
+              <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
+              <Sidebar className="flex border-none" />
+            </SheetContent>
+          </Sheet>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-4 py-8 sm:px-6 lg:px-8">
+          <div className="max-w-5xl mx-auto space-y-6">
+            {/* Header */}
+            <motion.div
+              initial={{ opacity: 0, y: -12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <Star className="w-5 h-5 text-accent" />
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
+                  TaraCSE
+                </span>
+              </div>
+              <h1 className="font-heading text-4xl font-bold text-foreground tracking-tight">
+                Achievements
+              </h1>
+              <p className="text-muted-foreground mt-1">
+                Track your progress and earn rewards on your path to success.
+              </p>
+            </motion.div>
 
         {/* Hero Card */}
         <motion.div
@@ -689,10 +713,12 @@ export default function AchievementsDashboard() {
         >
           Click any card to view its lore and requirements.
         </motion.p>
+        </div>
       </div>
 
       {/* Achievement Detail Dialog */}
       <AchievementDialog achievement={selected} onClose={() => setSelected(null)} />
-    </div>
+    </main>
+  </div>
   );
 }
