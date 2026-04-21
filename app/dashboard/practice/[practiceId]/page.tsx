@@ -353,7 +353,7 @@ export default function PracticePage() {
                       Question {currentIndex + 1}
                     </p>
                     <p
-                      className="font-heading text-xl md:text-2xl font-semibold text-foreground leading-relaxed whitespace-pre-line"
+                      className="font-heading text-[1.2rem] font-semibold leading-[1.75] text-foreground whitespace-pre-line"
                       dangerouslySetInnerHTML={{
                         __html: parseMarkdown(question.text),
                       }}
@@ -398,7 +398,7 @@ export default function PracticePage() {
                       >
                         <span
                           className={cn(
-                            "w-8 h-8 rounded-xl flex items-center justify-center text-sm font-heading font-bold shrink-0 transition-colors",
+                            "w-8 h-8 rounded-xl flex items-center justify-center text-xs font-heading font-bold shrink-0 transition-colors",
                             !locked
                               ? "bg-muted text-muted-foreground"
                               : isRight
@@ -410,7 +410,7 @@ export default function PracticePage() {
                         >
                           {opt.id.toUpperCase()}
                         </span>
-                        <span className="font-medium text-base leading-snug flex-1">
+                        <span className="font-medium text-sm leading-relaxed flex-1">
                           {opt.text}
                         </span>
                         {locked && isRight && (
