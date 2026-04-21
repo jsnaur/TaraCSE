@@ -409,23 +409,25 @@ export default function MockExamPage() {
 
             {/* ── Progress Bar ── */}
             <div className="px-8 pt-5 shrink-0">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
-                  Question {currentIndex + 1} of {QUESTIONS.length}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {answeredCount} answered
-                </span>
+              <div className="w-full max-w-3xl mx-auto">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
+                    Question {currentIndex + 1} of {QUESTIONS.length}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {answeredCount} answered
+                  </span>
+                </div>
+                <Progress
+                  value={progressValue}
+                  className="h-1.5 bg-muted [&>div]:bg-primary [&>div]:transition-all [&>div]:duration-500"
+                />
               </div>
-              <Progress
-                value={progressValue}
-                className="h-1.5 bg-muted [&>div]:bg-primary [&>div]:transition-all [&>div]:duration-500"
-              />
             </div>
 
             {/* ── Question Content ── */}
-            <main className="flex-1 px-8 py-7">
-              <div className="max-w-2xl">
+            <main className="flex-1 px-8 py-7 overflow-y-auto">
+              <div className="w-full max-w-3xl mx-auto">
                 <Badge variant="outline" className="mb-4 text-[11px] sm:hidden">
                   {question.category}
                 </Badge>
@@ -492,7 +494,7 @@ export default function MockExamPage() {
 
             {/* ── Navigation Footer ── */}
             <footer className="px-8 py-5 border-t border-border shrink-0">
-              <div className="max-w-2xl flex items-center justify-between gap-3">
+              <div className="w-full max-w-3xl mx-auto flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
