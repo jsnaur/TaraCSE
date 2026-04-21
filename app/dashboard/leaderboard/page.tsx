@@ -1,16 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Sidebar } from "@/components/sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Trophy, Medal, Clock, ChevronUp, ChevronDown, Minus, Star, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getProfile } from "../actions";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -222,7 +222,7 @@ function LeaderboardPanel({ data }: { data: ExamineeEntry[] }) {
   return (
     <div className="space-y-6">
       {/* ── Podium ── */}
-      <Card className="border-zinc-800 bg-zinc-900/60 backdrop-blur-sm overflow-hidden">
+      <Card className="border-zinc-800 bg-zinc-900/60 backdrop-blur-sm overflow-hidden shadow-none">
         <CardContent className="px-4 pb-0 pt-6">
           <div className="flex items-end justify-center gap-4 sm:gap-8">
             {/* Order: 2nd | 1st | 3rd */}
@@ -234,7 +234,7 @@ function LeaderboardPanel({ data }: { data: ExamineeEntry[] }) {
       </Card>
 
       {/* ── Ranks 4-10 ── */}
-      <Card className="border-zinc-800 bg-zinc-900/60 backdrop-blur-sm">
+      <Card className="border-zinc-800 bg-zinc-900/60 backdrop-blur-sm shadow-none">
         <CardContent className="p-3 sm:p-4 space-y-1">
           {/* Column header */}
           <div className="flex items-center gap-3 sm:gap-4 px-4 pb-2">
@@ -260,6 +260,28 @@ function LeaderboardPanel({ data }: { data: ExamineeEntry[] }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function LeaderboardPage() {
+  const [isLoading, setIsLoading] = useState(true);
+  const [examCategory, setExamCategory] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function load() {
+      const res = await getProfile();
+      if (res?.profile?.exam_category) {
+        setExamCategory(res.profile.exam_category);
+      }
+      setIsLoading(false);
+    }
+    load();
+  }, []);
+
+  if (isLoading) {
+    return <div className="flex h-screen w-full bg-zinc-950" />;
+  }
+
+  const isSubProf = examCategory === "Subprofessional";
+  const targetData = isSubProf ? subprofessionalData : professionalData;
+  const levelText = isSubProf ? "Subprofessional Level" : "Professional Level";
+
   return (
     <div className="flex h-screen w-full bg-zinc-950 text-zinc-50 overflow-hidden">
       <Sidebar className="hidden md:flex" />
@@ -293,53 +315,22 @@ export default function LeaderboardPage() {
           <div className="min-h-screen px-4 pb-16 pt-8 sm:px-6 lg:px-8">
             <div className="mx-auto max-w-2xl">
 
-        {/* ── Header ── */}
-        <div className="mb-8 space-y-1.5">
-          <div className="flex items-center gap-2.5">
-            <Trophy className="h-6 w-6 text-amber-400" />
-            <h1 className="font-['geist-sans'] text-2xl font-bold tracking-tight text-zinc-50 sm:text-3xl">
-              Global TaraCSE Leaderboard
-            </h1>
-          </div>
-          <p className="font-['geist-sans'] text-sm text-zinc-400 leading-relaxed">
-            See how you rank among the country's top CSE reviewees.{" "}
-            <span className="text-zinc-300 font-medium">Keep pushing — every point counts.</span>
-          </p>
-        </div>
+              {/* ── Header ── */}
+              <div className="mb-8 space-y-1.5">
+                <div className="flex items-center gap-2.5">
+                  <Trophy className="h-6 w-6 text-amber-400" />
+                  <h1 className="font-['geist-sans'] text-2xl font-bold tracking-tight text-zinc-50 sm:text-3xl">
+                    Global Leaderboard
+                  </h1>
+                </div>
+                <p className="font-['geist-sans'] text-sm text-zinc-400 leading-relaxed">
+                  See how you rank among the country's top <span className="text-zinc-200 font-semibold">{levelText}</span> reviewees.{" "}
+                  <span className="text-zinc-300 font-medium">Keep pushing — every point counts.</span>
+                </p>
+              </div>
 
-        {/* ── Tabs ── */}
-        <Tabs defaultValue="professional" className="space-y-6">
-          <TabsList className="w-full bg-zinc-900 border border-zinc-800 p-1 h-auto rounded-xl">
-            <TabsTrigger
-              value="professional"
-              className={cn(
-                "flex-1 rounded-lg py-2 text-sm font-medium transition-all",
-                "data-[state=active]:bg-zinc-100 data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm",
-                "data-[state=inactive]:text-zinc-400 data-[state=inactive]:hover:text-zinc-200",
-              )}
-            >
-              Professional Level
-            </TabsTrigger>
-            <TabsTrigger
-              value="subprofessional"
-              className={cn(
-                "flex-1 rounded-lg py-2 text-sm font-medium transition-all",
-                "data-[state=active]:bg-zinc-100 data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm",
-                "data-[state=inactive]:text-zinc-400 data-[state=inactive]:hover:text-zinc-200",
-              )}
-            >
-              Subprofessional Level
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="professional" className="mt-0 outline-none">
-            <LeaderboardPanel data={professionalData} />
-          </TabsContent>
-
-          <TabsContent value="subprofessional" className="mt-0 outline-none">
-            <LeaderboardPanel data={subprofessionalData} />
-          </TabsContent>
-        </Tabs>
+              {/* ── Leaderboard Data ── */}
+              <LeaderboardPanel data={targetData} />
 
             </div>
           </div>
