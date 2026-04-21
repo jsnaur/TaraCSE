@@ -257,11 +257,57 @@ function LeaderboardPanel({ data }: { data: ExamineeEntry[] }) {
   );
 }
 
+// ─── Skeleton Loading ──────────────────────────────────────────────────────
+
+function LeaderboardSkeleton() {
+  return (
+    <div className="animate-pulse">
+      <div className="mb-8 space-y-1.5">
+        <div className="flex items-center gap-2.5">
+          <div className="h-6 w-6 rounded bg-zinc-800" />
+          <div className="h-8 w-48 rounded bg-zinc-800" />
+        </div>
+        <div className="h-4 w-72 rounded bg-zinc-800" />
+      </div>
+
+      <div className="border border-zinc-800 rounded-lg bg-zinc-900/60 p-6 mb-6">
+        <div className="flex items-end justify-center gap-4 sm:gap-8">
+          <div className="flex flex-col items-center gap-3 pt-4">
+            <div className="h-16 w-16 rounded-full bg-zinc-800" />
+            <div className="h-16 w-24 rounded-t-md bg-zinc-800" />
+          </div>
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-16 w-16 rounded-full bg-zinc-800" />
+            <div className="h-12 w-24 rounded-t-md bg-zinc-800" />
+          </div>
+          <div className="flex flex-col items-center gap-3 pt-8">
+            <div className="h-16 w-16 rounded-full bg-zinc-800" />
+            <div className="h-8 w-24 rounded-t-md bg-zinc-800" />
+          </div>
+        </div>
+      </div>
+
+      <div className="border border-zinc-800 rounded-lg bg-zinc-900/60 p-3 sm:p-4 space-y-1">
+        {[1, 2, 3, 4, 5, 6, 7].map((i) => (
+          <div key={i} className="flex items-center gap-3 sm:gap-4 px-4 py-3 rounded-xl">
+            <div className="w-7 h-5 rounded bg-zinc-800" />
+            <div className="h-9 w-9 shrink-0 rounded-full bg-zinc-800" />
+            <div className="flex-1 h-5 rounded bg-zinc-800" />
+            <div className="hidden sm:block w-16 h-5 rounded bg-zinc-800" />
+            <div className="w-4 h-4 rounded bg-zinc-800" />
+            <div className="w-14 h-5 rounded bg-zinc-800" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function LeaderboardPage() {
   const [isLoading, setIsLoading] = useState(true);
-  const [examCategory, setExamCategory] = useState<string | null>(null);
+  const [examCategory, setExamCategory] = useState<string>("Professional");
 
   useEffect(() => {
     async function load() {
@@ -275,7 +321,45 @@ export default function LeaderboardPage() {
   }, []);
 
   if (isLoading) {
-    return <div className="flex h-screen w-full bg-zinc-950" />;
+    return (
+      <div className="flex h-screen w-full bg-zinc-950 text-zinc-50 overflow-hidden">
+        <Sidebar className="hidden md:flex" />
+
+        <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          <div className="px-4 md:px-5 h-[52px] min-h-[52px] border-b border-zinc-800 flex items-center gap-3 bg-zinc-950">
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className="md:hidden -ml-2 text-zinc-400 shrink-0">
+                  <Menu className="w-5 h-5" />
+                  <span className="sr-only">Toggle navigation menu</span>
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="p-0 w-[220px] border-r-0">
+                <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
+                <Sidebar className="flex border-none" />
+              </SheetContent>
+            </Sheet>
+
+            <div className="font-heading text-[15px] font-bold text-foreground tracking-tight truncate">
+              Leaderboard
+            </div>
+
+            <div className="ml-auto flex items-center gap-2 md:gap-4 text-[11px] text-zinc-400 shrink-0">
+              <span className="hidden lg:inline">Saturday, Apr 18 · Ranked top 5%</span>
+              <ThemeToggle />
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto">
+            <div className="min-h-screen px-4 pb-16 pt-8 sm:px-6 lg:px-8">
+              <div className="mx-auto max-w-2xl">
+                <LeaderboardSkeleton />
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
   }
 
   const isSubProf = examCategory === "Subprofessional";
