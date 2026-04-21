@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,12 +11,17 @@ import {
   XCircle,
   Sparkles,
   ChevronRight,
-  BookOpen,
   Trophy,
   Brain,
   Loader2,
+  X,
+  Target,
+  ArrowLeft,
+  ArrowRight,
+  Flag,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { cn } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -109,96 +115,9 @@ const QUESTIONS: Question[] = [
     explanation:
       'The passage explicitly states that the CSC "serves as the central personnel agency of the government." While promoting morale and integrity are mentioned as goals, the primary structural role identified is that of the central personnel agency.',
   },
-  {
-    id: 6,
-    category: "Vocabulary",
-    categoryIcon: "vocab",
-    text: 'Choose the word that best completes the sentence.\n\n"Despite the _______ evidence against him, the accused maintained his innocence throughout the trial."',
-    options: [
-      { id: "a", text: "flimsy" },
-      { id: "b", text: "scant" },
-      { id: "c", text: "overwhelming" },
-      { id: "d", text: "ambiguous" },
-    ],
-    correctId: "c",
-    explanation:
-      '"Despite" signals a contrast — maintaining innocence despite evidence implies the evidence was very strong. Overwhelming fits perfectly. Flimsy and scant would mean weak evidence, making it less surprising to claim innocence. Ambiguous means unclear, which wouldn\'t create a strong contrast.',
-  },
-  {
-    id: 7,
-    category: "Numerical Reasoning",
-    categoryIcon: "math",
-    text: "If 6 clerks can process 300 documents in 5 days, how many documents can 9 clerks process in 4 days at the same rate?",
-    options: [
-      { id: "a", text: "320" },
-      { id: "b", text: "340" },
-      { id: "c", text: "360" },
-      { id: "d", text: "380" },
-    ],
-    correctId: "c",
-    explanation:
-      "Rate per clerk per day = 300 ÷ 6 ÷ 5 = 10 documents. For 9 clerks in 4 days: 9 × 10 × 4 = 360 documents.",
-  },
-  {
-    id: 8,
-    category: "Reading Comprehension",
-    categoryIcon: "reading",
-    text: 'Read and answer:\n\n*"A true public servant puts the needs of the community above personal gain. This selfless dedication to service is the cornerstone of an effective and trustworthy government."*\n\nThe author\'s main point is that:',
-    options: [
-      { id: "a", text: "Government officials are always selfless" },
-      { id: "b", text: "Selfless dedication defines effective public service" },
-      { id: "c", text: "Personal gain motivates most public servants" },
-      { id: "d", text: "Community needs are hard to determine" },
-    ],
-    correctId: "b",
-    explanation:
-      'The passage states that "selfless dedication to service is the cornerstone of effective government." The main point is that this quality — putting community above self — defines what good public service looks like. Option A overgeneralizes; the passage describes an ideal, not a universal fact.',
-  },
-  {
-    id: 9,
-    category: "Numerical Reasoning",
-    categoryIcon: "math",
-    text: "A water tank is 3/4 full. After using 45 liters, it becomes 1/2 full. What is the total capacity of the tank?",
-    options: [
-      { id: "a", text: "160 liters" },
-      { id: "b", text: "175 liters" },
-      { id: "c", text: "180 liters" },
-      { id: "d", text: "200 liters" },
-    ],
-    correctId: "c",
-    explanation:
-      "3/4 – 1/2 = 1/4 of the tank = 45 liters. Therefore total capacity = 45 × 4 = 180 liters.",
-  },
-  {
-    id: 10,
-    category: "Vocabulary",
-    categoryIcon: "vocab",
-    text: 'The word "MITIGATE" most nearly means:',
-    options: [
-      { id: "a", text: "To worsen or intensify" },
-      { id: "b", text: "To make less severe or harsh" },
-      { id: "c", text: "To completely eliminate" },
-      { id: "d", text: "To officially investigate" },
-    ],
-    correctId: "b",
-    explanation:
-      'Mitigate means to lessen the severity, seriousness, or painfulness of something. It\'s commonly used in legal contexts ("mitigating circumstances") and disaster management. It does NOT mean to eliminate — only to reduce the impact.',
-  },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const CATEGORY_ICONS = {
-  vocab: BookOpen,
-  math: Brain,
-  reading: Trophy,
-};
-
-const CATEGORY_COLORS: Record<string, string> = {
-  Vocabulary: "bg-violet-100 text-violet-700 border border-violet-200",
-  "Numerical Reasoning": "bg-sky-100 text-sky-700 border border-sky-200",
-  "Reading Comprehension": "bg-amber-100 text-amber-700 border border-amber-200",
-};
 
 function parseMarkdown(text: string): string {
   return text
@@ -206,67 +125,121 @@ function parseMarkdown(text: string): string {
     .replace(/\*(.+?)\*/g, "<em>$1</em>");
 }
 
+type QuestionState = {
+  selectedId: string | null;
+  checked: boolean;
+  aiHint: string | null;
+};
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function PracticePage() {
+  const router = useRouter();
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [checked, setChecked] = useState(false);
-  const [aiHint, setAiHint] = useState<string | null>(null);
-  const [loadingAi, setLoadingAi] = useState(false);
-  const [score, setScore] = useState(0);
   const [finished, setFinished] = useState(false);
-  const [showConfetti, setShowConfetti] = useState(false);
+  const [loadingAi, setLoadingAi] = useState(false);
+
+  // Flagging state (ported from mockId/page.tsx)
+  const [flagged, setFlagged] = useState<Set<number>>(new Set());
+
+  // Maintain state for all questions so users can navigate the grid
+  const [states, setStates] = useState<QuestionState[]>(
+    QUESTIONS.map(() => ({ selectedId: null, checked: false, aiHint: null }))
+  );
 
   const question = QUESTIONS[currentIndex];
+  const currentState = states[currentIndex];
   const total = QUESTIONS.length;
-  const progress = ((currentIndex) / total) * 100;
-  const isCorrect = selectedId === question.correctId;
-  const Icon = CATEGORY_ICONS[question.categoryIcon];
 
-  // Reset per-question state
-  useEffect(() => {
-    setSelectedId(null);
-    setChecked(false);
-    setAiHint(null);
-  }, [currentIndex]);
+  // Derived Stats
+  const answeredCount = states.filter((s) => s.selectedId !== null).length;
+  const checkedCount = states.filter((s) => s.checked).length;
+  const score = states.filter(
+    (s, i) => s.checked && s.selectedId === QUESTIONS[i].correctId
+  ).length;
+  const progressValue = (checkedCount / total) * 100;
+  const isCorrect = currentState.selectedId === question.correctId;
 
-  const handleCheck = () => {
-    if (!selectedId) return;
-    setChecked(true);
-    if (selectedId === question.correctId) {
-      setScore((s) => s + 1);
-    }
+  // ── Flag toggle (ported from mockId/page.tsx) ────────────────────────────
+  function toggleFlag(index: number) {
+    setFlagged((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  }
+
+  const handleSelect = (id: string) => {
+    if (currentState.checked) return;
+    setStates((prev) => {
+      const next = [...prev];
+      next[currentIndex] = { ...next[currentIndex], selectedId: id };
+      return next;
+    });
   };
 
-  const handleNext = () => {
+  const handleCheck = () => {
+    if (!currentState.selectedId) return;
+    setStates((prev) => {
+      const next = [...prev];
+      next[currentIndex] = { ...next[currentIndex], checked: true };
+      return next;
+    });
+  };
+
+  // Shared "advance" logic used by both the inline button and the footer Next button
+  function advanceOrFinish() {
     if (currentIndex + 1 >= total) {
-      setShowConfetti(true);
       setFinished(true);
     } else {
       setCurrentIndex((i) => i + 1);
     }
-  };
+  }
 
   const handleAiHint = async () => {
     setLoadingAi(true);
-    // Simulate AI response (replace with real Anthropic API call)
     await new Promise((r) => setTimeout(r, 1400));
-    const hints: Record<number, string> = {
-      1: "💡 Think about what makes a great speaker. The word 'eloquent' is often used to praise politicians and orators. Focus on the quality of expression, not volume or length.",
-      2: "💡 Break it into two steps: (1) Find 12% of the base salary, (2) Add it to the original. Remember: percentage × base = increase amount.",
-      3: "💡 The question asks for the OPPOSITE. Hasty means rushed. Think: what word describes the complete opposite — someone who takes their time and thinks carefully?",
-      4: "💡 If A got 3/5, then B got the remaining fraction. Set up an equation: (B's fraction) × Total = B's votes. Then solve for Total.",
-      5: "💡 Go back to the passage and look for words that describe the CSC's function or role — not its goals. The answer is stated almost word-for-word.",
-      6: "💡 Focus on the word 'Despite.' It signals a contrast. If someone maintains innocence DESPITE evidence, the evidence must be very _______ to make that surprising.",
-      7: "💡 Find the rate per clerk per day first, then scale up. Rate = Total ÷ Workers ÷ Days.",
-      8: "💡 Identify the 'cornerstone' claim. The author is making a point about what defines good public servants — find the sentence that captures that idea.",
-      9: "💡 Find what fraction of the tank was used (3/4 minus 1/2). That fraction equals 45 liters. Use that to find the whole.",
-      10: "💡 Think of contexts where you've heard 'mitigate' — like 'mitigating factors' in law. It's about reducing, not removing. Which option fits that meaning?",
-    };
-    setAiHint(hints[question.id] ?? "💡 Re-read the question carefully and eliminate the obviously wrong answers first.");
+    setStates((prev) => {
+      const next = [...prev];
+      next[currentIndex] = {
+        ...next[currentIndex],
+        aiHint:
+          "💡 Think carefully about the context. Eliminate obviously incorrect choices first to narrow down your options.",
+      };
+      return next;
+    });
     setLoadingAi(false);
   };
+
+  // ── Grid Cell Variant Mapping ────────────────────────────────────────────
+  function getCellVariant(
+    i: number
+  ):
+    | "unanswered"
+    | "answered"
+    | "correct"
+    | "wrong"
+    | "current"
+    | "current-answered"
+    | "current-correct"
+    | "current-wrong" {
+    const s = states[i];
+    const isCurrent = i === currentIndex;
+    const isAnswered = s.selectedId !== null;
+    const isChecked = s.checked;
+    const isAnsCorrect = isChecked && s.selectedId === QUESTIONS[i].correctId;
+
+    if (isCurrent) {
+      if (isChecked) return isAnsCorrect ? "current-correct" : "current-wrong";
+      if (isAnswered) return "current-answered";
+      return "current";
+    }
+
+    if (isChecked) return isAnsCorrect ? "correct" : "wrong";
+    if (isAnswered) return "answered";
+    return "unanswered";
+  }
 
   // ── Finished Screen ──────────────────────────────────────────────────────
   if (finished) {
@@ -279,16 +252,21 @@ export default function PracticePage() {
         : "Keep going! 💪 Practice makes perfect.";
 
     return (
-      <div className="min-h-screen flex items-center justify-center p-6"
-        style={{ background: "linear-gradient(135deg, hsl(var(--background)) 0%, hsl(var(--muted)) 100%)" }}>
+      <div className="fixed inset-0 z-[100] bg-background flex items-center justify-center p-6">
         <motion.div
           initial={{ opacity: 0, scale: 0.92 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5, ease: "easeOut" }}
           className="w-full max-w-md text-center"
         >
-          <Card className="rounded-3xl shadow-2xl border-0 overflow-hidden">
-            <div className="h-2 w-full" style={{ background: "linear-gradient(90deg, hsl(var(--primary)), hsl(var(--chart-2)))" }} />
+          <Card className="rounded-3xl shadow-2xl border-0 overflow-hidden bg-card border-border">
+            <div
+              className="h-2 w-full"
+              style={{
+                background:
+                  "linear-gradient(90deg, hsl(var(--primary)), hsl(var(--chart-2)))",
+              }}
+            />
             <CardContent className="p-10 space-y-6">
               <motion.div
                 initial={{ rotate: -10, scale: 0.8 }}
@@ -299,20 +277,25 @@ export default function PracticePage() {
                 {pct >= 80 ? "🏆" : pct >= 60 ? "⭐" : "📚"}
               </motion.div>
               <div>
-                <p className="text-sm font-medium text-muted-foreground uppercase tracking-widest mb-1">Practice Complete</p>
-                <h1 className="font-heading text-4xl font-bold text-foreground">{score}/{total}</h1>
-                <p className="text-xl font-heading font-semibold mt-1" style={{ color: "hsl(var(--primary))" }}>{pct}% Correct</p>
+                <p className="text-sm font-medium text-muted-foreground uppercase tracking-widest mb-1">
+                  Practice Complete
+                </p>
+                <h1 className="font-heading text-4xl font-bold text-foreground">
+                  {score}/{total}
+                </h1>
+                <p className="text-xl font-heading font-semibold mt-1 text-primary">
+                  {pct}% Correct
+                </p>
               </div>
-              <p className="text-base text-muted-foreground font-medium">{message}</p>
-              <div className="pt-2 flex flex-col gap-3">
+              <p className="text-base text-muted-foreground font-medium">
+                {message}
+              </p>
+              <div className="pt-4 flex flex-col gap-3">
                 <Button
                   className="w-full h-12 rounded-2xl font-heading font-semibold text-base"
-                  onClick={() => { setCurrentIndex(0); setScore(0); setFinished(false); }}
+                  onClick={() => router.push("/dashboard/practice")}
                 >
-                  Try Again
-                </Button>
-                <Button variant="outline" className="w-full h-12 rounded-2xl font-heading font-medium text-base">
-                  Back to Dashboard
+                  Return to Dashboard
                 </Button>
               </div>
             </CardContent>
@@ -324,295 +307,467 @@ export default function PracticePage() {
 
   // ── Main Practice UI ──────────────────────────────────────────────────────
   return (
-    <div
-      className="min-h-screen py-8 px-4"
-      style={{ background: "linear-gradient(160deg, hsl(var(--background)) 0%, hsl(var(--muted)/0.4) 100%)" }}
-    >
-      <div className="max-w-3xl mx-auto space-y-6">
+    <div className="fixed inset-0 z-[100] bg-background lg:grid lg:grid-cols-[1fr_300px] overflow-hidden text-foreground">
 
-        {/* ── Header ── */}
-        <motion.div
-          initial={{ opacity: 0, y: -16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className="space-y-3"
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Icon className="w-4 h-4 text-muted-foreground" />
-              <span className={`text-xs font-semibold px-3 py-1 rounded-full ${CATEGORY_COLORS[question.category]}`}>
-                {question.category}
-              </span>
-            </div>
-            <span className="font-heading text-sm font-bold text-muted-foreground">
-              <span className="text-foreground">{currentIndex + 1}</span>
-              <span className="mx-0.5">/</span>
-              {total}
-            </span>
-          </div>
-          <div className="relative">
-            <Progress value={progress} className="h-2 rounded-full" />
-            <motion.div
-              className="absolute top-0 left-0 h-2 rounded-full"
-              style={{
-                width: `${((currentIndex + (checked ? 1 : 0)) / total) * 100}%`,
-                background: "linear-gradient(90deg, hsl(var(--primary)), hsl(var(--chart-2)))",
-                transition: "width 0.5s ease",
-              }}
-            />
-          </div>
-        </motion.div>
+      {/* ════════════════════════════════════════
+          LEFT COLUMN — Main Content Area
+      ════════════════════════════════════════ */}
+      <div className="flex flex-col h-full overflow-hidden border-r border-border">
 
-        {/* ── Question Card ── */}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={question.id}
-            initial={{ opacity: 0, x: 32 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -32 }}
-            transition={{ duration: 0.35, ease: "easeInOut" }}
-          >
-            <Card className="rounded-3xl border shadow-lg shadow-black/5">
-              <CardContent className="p-8">
-                <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4">
-                  Question {currentIndex + 1}
-                </p>
-                <p
-                  className="font-heading text-xl md:text-2xl font-semibold text-foreground leading-relaxed whitespace-pre-line"
-                  dangerouslySetInnerHTML={{ __html: parseMarkdown(question.text) }}
-                />
-              </CardContent>
-            </Card>
-          </motion.div>
-        </AnimatePresence>
-
-        {/* ── Options ── */}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={`options-${question.id}`}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            className="space-y-3"
-          >
-            {question.options.map((opt, i) => {
-              const isSelected = selectedId === opt.id;
-              const isRight = opt.id === question.correctId;
-
-              let cardClass =
-                "w-full text-left p-5 rounded-2xl border-2 transition-all duration-200 cursor-pointer group ";
-
-              if (!checked) {
-                cardClass += isSelected
-                  ? "border-primary bg-primary/5 shadow-md shadow-primary/10"
-                  : "border-border bg-card hover:border-primary/40 hover:bg-muted/50 hover:shadow-sm";
-              } else if (isRight) {
-                cardClass +=
-                  "border-[var(--spark-correct-border)] bg-[var(--spark-correct-bg)] text-[var(--spark-correct-text)]";
-              } else if (isSelected && !isRight) {
-                cardClass +=
-                  "border-[var(--spark-wrong-border)] bg-[var(--spark-wrong-bg)] text-[var(--spark-wrong-text)]";
-              } else {
-                cardClass += "border-border bg-card opacity-50";
-              }
-
-              return (
-                <motion.button
-                  key={opt.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.06, duration: 0.3 }}
-                  disabled={checked}
-                  onClick={() => !checked && setSelectedId(opt.id)}
-                  className={cardClass}
-                >
-                  <div className="flex items-center gap-4">
-                    {/* Letter badge */}
-                    <span
-                      className={`
-                        w-8 h-8 rounded-xl flex items-center justify-center text-sm font-heading font-bold shrink-0 transition-colors
-                        ${!checked
-                          ? isSelected
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary"
-                          : isRight
-                          ? "bg-[var(--spark-correct-text)] text-[var(--spark-correct-bg)]"
-                          : isSelected
-                          ? "bg-[var(--spark-wrong-text)] text-[var(--spark-wrong-bg)]"
-                          : "bg-muted text-muted-foreground"
-                        }
-                      `}
-                    >
-                      {opt.id.toUpperCase()}
-                    </span>
-
-                    {/* Option text */}
-                    <span className="font-medium text-base leading-snug flex-1 text-left">
-                      {opt.text}
-                    </span>
-
-                    {/* Status icon */}
-                    {checked && isRight && (
-                      <CheckCircle2 className="w-5 h-5 shrink-0 text-[var(--spark-correct-text)]" />
-                    )}
-                    {checked && isSelected && !isRight && (
-                      <XCircle className="w-5 h-5 shrink-0 text-[var(--spark-wrong-text)]" />
-                    )}
-                  </div>
-                </motion.button>
-              );
-            })}
-          </motion.div>
-        </AnimatePresence>
-
-        {/* ── Explanation Card ── */}
-        <AnimatePresence>
-          {checked && (
-            <motion.div
-              initial={{ opacity: 0, y: 20, scale: 0.97 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 10 }}
-              transition={{ duration: 0.4, ease: "easeOut" }}
+        {/* ── Minimal Top Navigation ── */}
+        <header className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-border bg-background/80 backdrop-blur-md shrink-0">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => router.push("/dashboard/practice")}
+              className="text-muted-foreground hover:text-foreground shrink-0 rounded-full bg-muted/50 hover:bg-muted"
             >
-              <Card
-                className="rounded-2xl border-2"
-                style={{
-                  borderColor: isCorrect
-                    ? "var(--spark-correct-border)"
-                    : "var(--spark-wrong-border)",
-                  background: isCorrect
-                    ? "var(--spark-correct-bg)"
-                    : "var(--spark-wrong-bg)",
-                }}
+              <X className="w-5 h-5" />
+            </Button>
+            <div>
+              <h1 className="font-heading text-sm md:text-base font-extrabold tracking-tight">
+                Practice Session
+              </h1>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold hidden sm:block">
+                Focus Mode Active
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Badge variant="outline" className="hidden sm:inline-flex bg-card">
+              {question.category}
+            </Badge>
+          </div>
+        </header>
+
+        {/* ── Scrollable Question Area ── */}
+        <div className="flex-1 overflow-y-auto">
+          <main className="w-full max-w-3xl mx-auto px-6 py-8 pb-4">
+
+            {/* Progress Header (Mobile Only) */}
+            <div className="mb-8 space-y-3 lg:hidden">
+              <div className="flex justify-between items-center text-xs font-semibold text-muted-foreground uppercase tracking-widest">
+                <span>Question {currentIndex + 1} of {total}</span>
+                <span>{checkedCount} Completed</span>
+              </div>
+              <Progress value={progressValue} className="h-1.5" />
+            </div>
+
+            {/* Question Card */}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={question.id}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.3, ease: "easeInOut" }}
               >
-                <CardContent className="p-6 space-y-4">
-                  <div className="flex items-center gap-2">
-                    {isCorrect ? (
-                      <CheckCircle2
-                        className="w-5 h-5"
-                        style={{ color: "var(--spark-correct-text)" }}
-                      />
-                    ) : (
-                      <XCircle
-                        className="w-5 h-5"
-                        style={{ color: "var(--spark-wrong-text)" }}
-                      />
-                    )}
-                    <p
-                      className="font-heading font-bold text-base"
-                      style={{
-                        color: isCorrect
-                          ? "var(--spark-correct-text)"
-                          : "var(--spark-wrong-text)",
-                      }}
-                    >
-                      {isCorrect ? "Tama! That's correct." : "Hindi tama. Here's why:"}
+                <Card className="rounded-3xl border shadow-sm bg-card mb-6">
+                  <CardContent className="p-8">
+                    <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4">
+                      Question {currentIndex + 1}
                     </p>
-                  </div>
+                    <p
+                      className="font-heading text-xl md:text-2xl font-semibold text-foreground leading-relaxed whitespace-pre-line"
+                      dangerouslySetInnerHTML={{
+                        __html: parseMarkdown(question.text),
+                      }}
+                    />
+                  </CardContent>
+                </Card>
 
-                  <p
-                    className="text-sm leading-relaxed font-medium"
-                    style={{
-                      color: isCorrect
-                        ? "var(--spark-correct-text)"
-                        : "var(--spark-wrong-text)",
-                      opacity: 0.9,
-                    }}
-                  >
-                    {question.explanation}
-                  </p>
+                {/* Options */}
+                <div className="space-y-3 mb-8">
+                  {question.options.map((opt) => {
+                    const isSelected = currentState.selectedId === opt.id;
+                    const isRight = opt.id === question.correctId;
+                    const isChecked = currentState.checked;
 
-                  {/* AI Hint */}
-                  <AnimatePresence>
-                    {aiHint && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
-                        className="rounded-xl p-4 border-2"
+                    let cardClass =
+                      "w-full text-left p-5 rounded-2xl border-[1.5px] transition-all duration-200 cursor-pointer group flex items-center gap-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ";
+
+                    if (!isChecked) {
+                      cardClass += isSelected
+                        ? "border-primary bg-primary/5 shadow-sm"
+                        : "border-border bg-card hover:border-border/80 hover:bg-muted/50";
+                    } else if (isRight) {
+                      cardClass +=
+                        "border-[var(--spark-correct-border)] bg-[var(--spark-correct-bg)] text-[var(--spark-correct-text)]";
+                    } else if (isSelected && !isRight) {
+                      cardClass +=
+                        "border-[var(--spark-wrong-border)] bg-[var(--spark-wrong-bg)] text-[var(--spark-wrong-text)]";
+                    } else {
+                      cardClass += "border-border bg-card opacity-50";
+                    }
+
+                    return (
+                      <button
+                        key={opt.id}
+                        disabled={isChecked}
+                        onClick={() => handleSelect(opt.id)}
+                        className={cardClass}
+                      >
+                        <span
+                          className={cn(
+                            "w-8 h-8 rounded-xl flex items-center justify-center text-sm font-heading font-bold shrink-0 transition-colors",
+                            !isChecked
+                              ? isSelected
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-muted text-muted-foreground group-hover:bg-muted/80"
+                              : isRight
+                              ? "bg-[var(--spark-correct-text)] text-[var(--spark-correct-bg)]"
+                              : isSelected
+                              ? "bg-[var(--spark-wrong-text)] text-[var(--spark-wrong-bg)]"
+                              : "bg-muted text-muted-foreground"
+                          )}
+                        >
+                          {opt.id.toUpperCase()}
+                        </span>
+                        <span className="font-medium text-base leading-snug flex-1">
+                          {opt.text}
+                        </span>
+                        {isChecked && isRight && (
+                          <CheckCircle2 className="w-5 h-5 shrink-0 text-[var(--spark-correct-text)]" />
+                        )}
+                        {isChecked && isSelected && !isRight && (
+                          <XCircle className="w-5 h-5 shrink-0 text-[var(--spark-wrong-text)]" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Explanation Card */}
+                <AnimatePresence>
+                  {currentState.checked && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.4, ease: "easeOut" }}
+                      className="mb-8"
+                    >
+                      <Card
+                        className="rounded-2xl border-[1.5px] shadow-sm"
                         style={{
-                          background: "var(--spark-ai-bg)",
-                          borderColor: "var(--spark-ai-border)",
+                          borderColor: isCorrect
+                            ? "var(--spark-correct-border)"
+                            : "var(--spark-wrong-border)",
+                          background: isCorrect
+                            ? "var(--spark-correct-bg)"
+                            : "var(--spark-wrong-bg)",
                         }}
                       >
-                        <p
-                          className="text-sm font-medium leading-relaxed"
-                          style={{ color: "var(--spark-ai-text)" }}
-                        >
-                          {aiHint}
-                        </p>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                        <CardContent className="p-6 space-y-4">
+                          <div className="flex items-center gap-2">
+                            {isCorrect ? (
+                              <CheckCircle2
+                                className="w-5 h-5"
+                                style={{ color: "var(--spark-correct-text)" }}
+                              />
+                            ) : (
+                              <XCircle
+                                className="w-5 h-5"
+                                style={{ color: "var(--spark-wrong-text)" }}
+                              />
+                            )}
+                            <p
+                              className="font-heading font-bold text-base"
+                              style={{
+                                color: isCorrect
+                                  ? "var(--spark-correct-text)"
+                                  : "var(--spark-wrong-text)",
+                              }}
+                            >
+                              {isCorrect
+                                ? "Tama! That's correct."
+                                : "Hindi tama. Here's why:"}
+                            </p>
+                          </div>
+                          <p
+                            className="text-sm leading-relaxed font-medium"
+                            style={{
+                              color: isCorrect
+                                ? "var(--spark-correct-text)"
+                                : "var(--spark-wrong-text)",
+                              opacity: 0.9,
+                            }}
+                          >
+                            {question.explanation}
+                          </p>
 
-                  {/* Ask AI button */}
-                  {!aiHint && (
+                          {/* AI Hint Section */}
+                          {currentState.aiHint ? (
+                            <motion.div
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              className="rounded-xl p-4 border-[1.5px] mt-4"
+                              style={{
+                                background: "var(--spark-ai-bg)",
+                                borderColor: "var(--spark-ai-border)",
+                              }}
+                            >
+                              <p
+                                className="text-sm font-medium leading-relaxed"
+                                style={{ color: "var(--spark-ai-text)" }}
+                              >
+                                {currentState.aiHint}
+                              </p>
+                            </motion.div>
+                          ) : (
+                            <div className="pt-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handleAiHint}
+                                disabled={loadingAi}
+                                className="rounded-xl border-[1.5px] font-semibold text-sm"
+                                style={{
+                                  background: "var(--spark-ai-bg)",
+                                  color: "var(--spark-ai-text)",
+                                  borderColor: "var(--spark-ai-border)",
+                                }}
+                              >
+                                {loadingAi ? (
+                                  <>
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    Asking AI…
+                                  </>
+                                ) : (
+                                  <>
+                                    <Sparkles className="w-4 h-4 mr-2" />
+                                    Ask AI for a Hint
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* ── Inline Check / Next Button (below options) ── */}
+                <motion.div layout className="mb-4">
+                  {!currentState.checked ? (
                     <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleAiHint}
-                      disabled={loadingAi}
-                      className="rounded-xl border-2 font-semibold text-sm h-9 px-4"
-                      style={{
-                        background: "var(--spark-ai-bg)",
-                        color: "var(--spark-ai-text)",
-                        borderColor: "var(--spark-ai-border)",
-                      }}
+                      size="lg"
+                      className="w-full h-14 rounded-2xl font-heading font-bold text-lg shadow-md transition-all"
+                      disabled={!currentState.selectedId}
+                      onClick={handleCheck}
                     >
-                      {loadingAi ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Asking AI…
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="w-4 h-4 mr-2" />
-                          Ask AI for a Hint
-                        </>
-                      )}
+                      Check Answer
+                    </Button>
+                  ) : (
+                    <Button
+                      size="lg"
+                      className="w-full h-14 rounded-2xl font-heading font-bold text-lg shadow-md group"
+                      onClick={advanceOrFinish}
+                    >
+                      {currentIndex + 1 === total
+                        ? "Finish Practice"
+                        : "Next Question"}
+                      <ChevronRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
                     </Button>
                   )}
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
-        </AnimatePresence>
+                </motion.div>
+              </motion.div>
+            </AnimatePresence>
+          </main>
+        </div>
 
-        {/* ── Action Button ── */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="pb-8"
-        >
-          {!checked ? (
-            <Button
-              size="lg"
-              className="w-full h-14 rounded-2xl font-heading font-bold text-lg shadow-lg transition-all"
-              disabled={!selectedId}
-              onClick={handleCheck}
-            >
-              Check Answer
-            </Button>
-          ) : (
-            <motion.div
-              initial={{ scale: 0.96 }}
-              animate={{ scale: 1 }}
-              transition={{ type: "spring", stiffness: 300 }}
-            >
+        {/* ── Navigation Footer (ported from mockId/page.tsx) ── */}
+        <footer className="px-6 py-4 border-t border-border shrink-0 bg-background">
+          <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
               <Button
-                size="lg"
-                className="w-full h-14 rounded-2xl font-heading font-bold text-lg shadow-lg group"
-                onClick={handleNext}
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
+                disabled={currentIndex === 0}
+                className="gap-1.5"
               >
-                {currentIndex + 1 === total ? "View Results" : "Next Question"}
-                <ChevronRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                <ArrowLeft className="w-3.5 h-3.5" />
+                Previous
               </Button>
-            </motion.div>
-          )}
-        </motion.div>
 
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => toggleFlag(currentIndex)}
+                className={cn(
+                  "gap-1.5 text-muted-foreground",
+                  flagged.has(currentIndex) &&
+                    "text-amber-600 hover:text-amber-700"
+                )}
+                title={
+                  flagged.has(currentIndex) ? "Remove flag" : "Flag for review"
+                }
+              >
+                <Flag
+                  className={cn(
+                    "w-3.5 h-3.5",
+                    flagged.has(currentIndex) && "fill-current"
+                  )}
+                />
+                <span className="hidden sm:inline">
+                  {flagged.has(currentIndex) ? "Flagged" : "Flag"}
+                </span>
+              </Button>
+            </div>
+
+            <Button
+              onClick={() =>
+                setCurrentIndex((i) => Math.min(total - 1, i + 1))
+              }
+              disabled={currentIndex === total - 1}
+              className="gap-1.5 font-heading font-bold"
+            >
+              Next
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        </footer>
+
+        {/* Mobile: bottom padding for fixed submit bar */}
+        <div className="lg:hidden h-20" />
       </div>
+
+      {/* ════════════════════════════════════════
+          RIGHT COLUMN — Persistent Sidebar
+      ════════════════════════════════════════ */}
+      <aside className="hidden lg:flex flex-col gap-5 sticky top-0 h-screen overflow-y-auto p-5 bg-card border-l border-border">
+
+        {/* ── Score Counter (retained from original practice page — NO timer) ── */}
+        <div className="rounded-[var(--radius-lg)] border p-5 text-center border-border bg-muted/40">
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <Target className="w-4 h-4 text-primary" />
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+              Current Score
+            </p>
+          </div>
+
+          <p className="font-mono text-[2.5rem] font-extrabold tracking-tight tabular-nums leading-none text-foreground">
+            {score}
+            <span className="text-xl text-muted-foreground/50">/{total}</span>
+          </p>
+        </div>
+
+        {/* ── Question Navigation Grid ── */}
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">
+            Question Navigator
+          </p>
+
+          <div className="grid grid-cols-5 gap-1.5">
+            {QUESTIONS.map((_, i) => {
+              const variant = getCellVariant(i);
+              const isFlagged = flagged.has(i);
+
+              return (
+                <button
+                  key={i}
+                  onClick={() => setCurrentIndex(i)}
+                  title={`Q${i + 1}${states[i].selectedId !== null ? " · answered" : ""}${isFlagged ? " · flagged" : ""}`}
+                  className={cn(
+                    "relative aspect-square rounded-lg text-xs font-bold",
+                    "transition-all duration-100",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1",
+
+                    variant === "unanswered" &&
+                      "border-[1.5px] border-border bg-background text-muted-foreground hover:border-primary hover:text-primary",
+
+                    variant === "answered" &&
+                      "bg-primary border-[1.5px] border-primary text-primary-foreground hover:bg-primary/85",
+
+                    variant === "correct" &&
+                      "bg-[var(--spark-correct-bg)] border-[1.5px] border-[var(--spark-correct-border)] text-[var(--spark-correct-text)]",
+
+                    variant === "wrong" &&
+                      "bg-[var(--spark-wrong-bg)] border-[1.5px] border-[var(--spark-wrong-border)] text-[var(--spark-wrong-text)]",
+
+                    variant === "current" &&
+                      "border-[2.5px] border-primary text-primary font-extrabold bg-background ring-2 ring-primary ring-offset-2",
+
+                    variant === "current-answered" &&
+                      "bg-primary border-[1.5px] border-primary text-primary-foreground ring-2 ring-primary/50 ring-offset-2",
+
+                    variant === "current-correct" &&
+                      "bg-[var(--spark-correct-bg)] border-[1.5px] border-[var(--spark-correct-border)] text-[var(--spark-correct-text)] ring-2 ring-[var(--spark-correct-border)] ring-offset-2",
+
+                    variant === "current-wrong" &&
+                      "bg-[var(--spark-wrong-bg)] border-[1.5px] border-[var(--spark-wrong-border)] text-[var(--spark-wrong-text)] ring-2 ring-[var(--spark-wrong-border)] ring-offset-2"
+                  )}
+                >
+                  {i + 1}
+                  {/* Amber flag dot (ported from mockId/page.tsx) */}
+                  {isFlagged && (
+                    <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-amber-400 ring-1 ring-background" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Legend */}
+          <div className="flex flex-wrap gap-x-3 gap-y-1.5 mt-3">
+            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+              <span className="w-3 h-3 rounded-[3px] border border-border inline-block" />
+              Unanswered
+            </div>
+            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+              <span className="w-3 h-3 rounded-[3px] bg-[var(--spark-correct-bg)] border border-[var(--spark-correct-border)] inline-block" />
+              Correct
+            </div>
+            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+              <span className="w-3 h-3 rounded-[3px] bg-[var(--spark-wrong-bg)] border border-[var(--spark-wrong-border)] inline-block" />
+              Incorrect
+            </div>
+            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+              <span className="w-3 h-3 rounded-[3px] bg-amber-400 inline-block" />
+              Flagged
+            </div>
+          </div>
+        </div>
+
+        {/* ── Progress Summary Card ── */}
+        <div className="rounded-lg bg-muted/50 border border-border p-3">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-xs text-muted-foreground">Progress</span>
+            <span className="text-xs font-semibold text-primary">
+              {checkedCount}/{total}
+            </span>
+          </div>
+          <Progress
+            value={progressValue}
+            className="h-1.5 bg-muted [&>div]:bg-primary"
+          />
+          <div className="flex justify-between mt-2 text-[11px] text-muted-foreground">
+            <span>{checkedCount} checked</span>
+            <span>{total - checkedCount} remaining</span>
+          </div>
+        </div>
+
+        {/* Spacer pushes exit to bottom */}
+        <div className="flex-1" />
+
+        {/* ── Exit Action (retained from original practice page) ── */}
+        <div className="space-y-2">
+          <Button
+            variant="outline"
+            size="lg"
+            className="w-full font-heading font-extrabold text-sm tracking-wide border-border"
+            onClick={() => router.push("/dashboard/practice")}
+          >
+            Exit Practice
+          </Button>
+          <p className="text-center text-[10px] text-muted-foreground leading-relaxed">
+            Your progress will not be saved if you exit early.
+          </p>
+        </div>
+      </aside>
     </div>
   );
 }
