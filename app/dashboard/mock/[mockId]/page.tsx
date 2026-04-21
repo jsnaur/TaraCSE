@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Progress } from "@/components/ui/progress";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -432,10 +433,17 @@ export default function MockExamPage() {
                   {question.category}
                 </Badge>
 
-                {/* Question text — large, readable, no answer cues ever */}
-                <h2 className="font-heading text-[1.2rem] font-semibold leading-[1.75] text-foreground mb-8">
-                  {question.text}
-                </h2>
+                {/* Question text wrapped in Practice-style Card */}
+                <Card className="rounded-3xl border shadow-sm bg-card mb-6">
+                  <CardContent className="p-8">
+                    <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4">
+                      Question {currentIndex + 1}
+                    </p>
+                    <h2 className="font-heading text-[1.2rem] font-semibold leading-[1.75] text-foreground">
+                      {question.text}
+                    </h2>
+                  </CardContent>
+                </Card>
 
                 {/* Options — selected state is purely neutral (no correct/wrong colors) */}
                 <div className="flex flex-col gap-3">
@@ -447,7 +455,7 @@ export default function MockExamPage() {
                         onClick={() => selectOption(i)}
                         className={cn(
                           "group flex items-center gap-4 w-full text-left",
-                          "px-5 py-4 rounded-[var(--radius-lg)] border-[1.5px]",
+                          "p-5 rounded-2xl border-[1.5px]",
                           "transition-all duration-150",
                           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
                           // Selected: neutral primary ring only — NEVER green or red
@@ -459,7 +467,7 @@ export default function MockExamPage() {
                         {/* Letter bubble */}
                         <span
                           className={cn(
-                            "w-8 h-8 rounded-lg flex items-center justify-center",
+                            "w-8 h-8 rounded-xl flex items-center justify-center",
                             "text-xs font-bold shrink-0 transition-colors",
                             isSelected
                               ? "bg-primary text-primary-foreground"
