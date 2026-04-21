@@ -95,7 +95,7 @@ export function Sidebar({ className = "" }: { className?: string }) {
           Analytics
         </Link>
         
-        <Link href="#" className={getNavClasses(false)}>
+        <Link href="/dashboard/achievements" className={getNavClasses(isActive("/dashboard/achievements"))}>
           <div className="w-6.5 h-6.5 rounded flex items-center justify-center shrink-0 bg-[#1D0E2E] text-[#C080E0]">
             <Award className="w-4 h-4" />
           </div>
