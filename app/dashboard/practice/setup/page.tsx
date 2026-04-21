@@ -1,96 +1,30 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   ArrowRight,
   BookOpen,
-  Hash,
   Layers,
   BrainCircuit,
   Globe2,
   CalculatorIcon,
-  Infinity,
   CheckCircle2,
   ChevronRight,
   Sparkles,
+  ClipboardList,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { getProfile } from "../../actions";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type ExamLevel = "professional" | "subprofessional" | null;
-type Category = "verbal" | "numerical" | "analytical" | "general";
+type Category = "verbal" | "numerical" | "analytical" | "clerical" | "general";
 type ItemCount = 10 | 20 | 50 | "endless";
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
-
-const EXAM_LEVELS = [
-  {
-    id: "professional" as ExamLevel,
-    label: "Professional",
-    subtitle: "Career Service — Professional",
-    description: "For positions in the 1st and 2nd level of the Civil Service",
-    badge: "Higher Difficulty",
-    badgeColor: "var(--spark-ai-text)",
-    badgeBg: "var(--spark-ai-bg)",
-  },
-  {
-    id: "subprofessional" as ExamLevel,
-    label: "Subprofessional",
-    subtitle: "Career Service — SubProf",
-    description: "For clerical, trades, crafts and custodial service positions",
-    badge: "Entry Level",
-    badgeColor: "var(--spark-correct-text)",
-    badgeBg: "var(--spark-correct-bg)",
-  },
-];
-
-const CATEGORIES = [
-  {
-    id: "verbal" as Category,
-    label: "Verbal",
-    full: "Verbal Ability",
-    description: "Analogies, grammar, reading comprehension",
-    icon: BookOpen,
-    color: "var(--primary)",
-    bg: "var(--spark-ai-bg)",
-    border: "var(--spark-ai-border)",
-  },
-  {
-    id: "numerical" as Category,
-    label: "Numerical",
-    full: "Numerical Ability",
-    description: "Arithmetic, number series, word problems",
-    icon: CalculatorIcon,
-    color: "var(--secondary)",
-    bg: "#EBF8FF",
-    border: "#BAE6FD",
-  },
-  {
-    id: "analytical" as Category,
-    label: "Analytical",
-    full: "Analytical Ability",
-    description: "Pattern recognition, logic, data sufficiency",
-    icon: BrainCircuit,
-    color: "var(--accent)",
-    bg: "#FFFBEB",
-    border: "#FDE68A",
-  },
-  {
-    id: "general" as Category,
-    label: "General Info",
-    full: "General Information & CS",
-    description: "Philippine history, government, constitution",
-    icon: Globe2,
-    color: "var(--spark-correct-text)",
-    bg: "var(--spark-correct-bg)",
-    border: "var(--spark-correct-border)",
-  },
-];
 
 const ITEM_COUNTS: { value: ItemCount; label: string; sub: string }[] = [
   { value: 10, label: "10", sub: "Quick Sprint" },
@@ -136,10 +70,90 @@ function StepDot({
 export default function PracticeSetupPage() {
   const router = useRouter();
 
+  const [isLoading, setIsLoading] = useState(true);
+  const [examCategory, setExamCategory] = useState<string | null>(null);
+  
   const [step, setStep] = useState(1);
-  const [examLevel, setExamLevel] = useState<ExamLevel>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [itemCount, setItemCount] = useState<ItemCount | null>(null);
+
+  // Fetch the user's exam category on mount
+  useEffect(() => {
+    async function load() {
+      const res = await getProfile();
+      if (res?.profile?.exam_category) {
+        setExamCategory(res.profile.exam_category);
+      } else {
+        // If no category is found, kick them back to the dashboard to select one
+        router.push("/dashboard");
+      }
+      setIsLoading(false);
+    }
+    load();
+  }, [router]);
+
+  // Dynamically build the category options based on user's exam track
+  const availableCategories = useMemo(() => {
+    const base = [
+      {
+        id: "verbal" as Category,
+        label: "Verbal",
+        full: "Verbal Ability",
+        description: "Analogies, grammar, reading comprehension",
+        icon: BookOpen,
+        color: "var(--primary)",
+        bg: "var(--spark-ai-bg)",
+        border: "var(--spark-ai-border)",
+      },
+      {
+        id: "numerical" as Category,
+        label: "Numerical",
+        full: "Numerical Ability",
+        description: "Arithmetic, number series, word problems",
+        icon: CalculatorIcon,
+        color: "var(--secondary)",
+        bg: "#EBF8FF",
+        border: "#BAE6FD",
+      },
+    ];
+
+    if (examCategory === "Subprofessional") {
+      base.push({
+        id: "clerical" as Category,
+        label: "Clerical",
+        full: "Clerical Operations",
+        description: "Filing, alphabetizing, office procedures",
+        icon: ClipboardList,
+        color: "var(--accent)",
+        bg: "#FFFBEB",
+        border: "#FDE68A",
+      });
+    } else {
+      base.push({
+        id: "analytical" as Category,
+        label: "Analytical",
+        full: "Analytical Ability",
+        description: "Pattern recognition, logic, data sufficiency",
+        icon: BrainCircuit,
+        color: "var(--accent)",
+        bg: "#FFFBEB",
+        border: "#FDE68A",
+      });
+    }
+
+    base.push({
+      id: "general" as Category,
+      label: "General Info",
+      full: "General Information & CS",
+      description: "Philippine history, government, constitution",
+      icon: Globe2,
+      color: "var(--spark-correct-text)",
+      bg: "var(--spark-correct-bg)",
+      border: "var(--spark-correct-border)",
+    });
+
+    return base;
+  }, [examCategory]);
 
   const toggleCategory = (cat: Category) => {
     setCategories((prev) =>
@@ -148,10 +162,9 @@ export default function PracticeSetupPage() {
   };
 
   // derive per-step validity
-  const step1Valid = examLevel !== null;
-  const step2Valid = categories.length > 0;
-  const step3Valid = itemCount !== null;
-  const allValid = step1Valid && step2Valid && step3Valid;
+  const step1Valid = categories.length > 0;
+  const step2Valid = itemCount !== null;
+  const allValid = step1Valid && step2Valid;
 
   const handleStart = () => {
     if (!allValid) return;
@@ -159,21 +172,24 @@ export default function PracticeSetupPage() {
   };
 
   // summary label helpers
-  const summaryLevel = examLevel
-    ? EXAM_LEVELS.find((l) => l.id === examLevel)?.label
-    : null;
   const summaryCategories =
-    categories.length === CATEGORIES.length
+    categories.length === availableCategories.length
       ? "All Categories"
       : categories
-          .map((c) => CATEGORIES.find((x) => x.id === c)?.label)
+          .map((c) => availableCategories.find((x) => x.id === c)?.label)
           .join(", ");
+          
   const summaryItems =
     itemCount === "endless"
       ? "Endless"
       : itemCount
       ? `${itemCount} items`
       : null;
+
+  // Prevent flash of UI while checking auth
+  if (isLoading) {
+    return <div className="min-h-screen w-full bg-background" />;
+  }
 
   return (
     <div
@@ -213,10 +229,10 @@ export default function PracticeSetupPage() {
 
           {/* step indicator */}
           <div className="flex items-center gap-1">
-            {[1, 2, 3].map((s) => (
+            {[1, 2].map((s) => (
               <div key={s} className="flex items-center gap-1">
                 <StepDot step={s} current={step} done={s < step} />
-                {s < 3 && (
+                {s < 2 && (
                   <div
                     className="w-6 h-0.5 rounded-full transition-all duration-500"
                     style={{
@@ -236,139 +252,62 @@ export default function PracticeSetupPage() {
             className="text-xs uppercase tracking-widest font-medium mb-1"
             style={{ color: "var(--primary)" }}
           >
-            Step {step} of 3
+            Step {step} of 2
           </p>
           <h1
             className="font-heading text-3xl font-bold leading-tight"
             style={{ color: "var(--foreground)" }}
           >
-            {step === 1 && "Choose your exam level."}
-            {step === 2 && "Pick your categories."}
-            {step === 3 && "How many questions?"}
+            {step === 1 && `Pick your categories for the ${examCategory} exam.`}
+            {step === 2 && "How many questions?"}
           </h1>
           <p
             className="text-sm mt-1"
             style={{ color: "var(--muted-foreground)" }}
           >
             {step === 1 &&
-              "Select the Civil Service track that matches your target position."}
-            {step === 2 &&
               "Select one or more subject areas to include in this session."}
-            {step === 3 &&
+            {step === 2 &&
               "Pick a session length. Endless mode keeps going until you stop."}
           </p>
         </header>
 
-        {/* ── Step 1: Exam Level ─────────────────────────────── */}
+        {/* ── Step 1: Categories ─────────────────────────────── */}
         {step === 1 && (
-          <div className="flex flex-col gap-3">
-            {EXAM_LEVELS.map((level) => {
-              const active = examLevel === level.id;
-              return (
-                <button
-                  key={level.id}
-                  onClick={() => setExamLevel(level.id)}
-                  className="text-left w-full rounded-3xl border p-5 flex items-start gap-4 transition-all duration-200 hover:scale-[1.01] focus:outline-none"
-                  style={{
-                    background: active ? "var(--spark-ai-bg)" : "var(--card)",
-                    borderColor: active
-                      ? "var(--primary)"
-                      : "var(--border)",
-                    boxShadow: active
-                      ? "0 0 0 2px var(--primary)"
-                      : "none",
-                  }}
-                >
-                  {/* check circle */}
-                  <div
-                    className="mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all duration-200"
-                    style={{
-                      borderColor: active ? "var(--primary)" : "var(--border)",
-                      background: active ? "var(--primary)" : "transparent",
-                    }}
-                  >
-                    {active && (
-                      <CheckCircle2
-                        size={12}
-                        strokeWidth={3}
-                        color="white"
-                      />
-                    )}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span
-                        className="font-heading text-lg font-bold"
-                        style={{ color: "var(--foreground)" }}
-                      >
-                        {level.label}
-                      </span>
-                      <span
-                        className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full"
-                        style={{
-                          background: level.badgeBg,
-                          color: level.badgeColor,
-                        }}
-                      >
-                        {level.badge}
-                      </span>
-                    </div>
-                    <p
-                      className="text-xs mt-0.5 font-medium"
-                      style={{ color: "var(--primary)" }}
-                    >
-                      {level.subtitle}
-                    </p>
-                    <p
-                      className="text-sm mt-1"
-                      style={{ color: "var(--muted-foreground)" }}
-                    >
-                      {level.description}
-                    </p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {/* ── Step 2: Categories ─────────────────────────────── */}
-        {step === 2 && (
           <div className="flex flex-col gap-3">
             {/* Select All shortcut */}
             <button
               onClick={() =>
                 setCategories(
-                  categories.length === CATEGORIES.length
+                  categories.length === availableCategories.length
                     ? []
-                    : (CATEGORIES.map((c) => c.id) as Category[])
+                    : (availableCategories.map((c) => c.id) as Category[])
                 )
               }
               className="self-start text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-medium transition-all duration-150 hover:opacity-80"
               style={{
                 borderColor:
-                  categories.length === CATEGORIES.length
+                  categories.length === availableCategories.length
                     ? "var(--primary)"
                     : "var(--border)",
                 color:
-                  categories.length === CATEGORIES.length
+                  categories.length === availableCategories.length
                     ? "var(--primary)"
                     : "var(--muted-foreground)",
                 background:
-                  categories.length === CATEGORIES.length
+                  categories.length === availableCategories.length
                     ? "var(--spark-ai-bg)"
                     : "var(--card)",
               }}
             >
               <Layers size={12} />
-              {categories.length === CATEGORIES.length
+              {categories.length === availableCategories.length
                 ? "Deselect All"
                 : "Select All"}
             </button>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {CATEGORIES.map((cat) => {
+              {availableCategories.map((cat) => {
                 const active = categories.includes(cat.id);
                 const Icon = cat.icon;
                 return (
@@ -431,8 +370,8 @@ export default function PracticeSetupPage() {
           </div>
         )}
 
-        {/* ── Step 3: Item Count ─────────────────────────────── */}
-        {step === 3 && (
+        {/* ── Step 2: Item Count ─────────────────────────────── */}
+        {step === 2 && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {ITEM_COUNTS.map((opt) => {
               const active = itemCount === opt.value;
@@ -479,56 +418,54 @@ export default function PracticeSetupPage() {
           </div>
         )}
 
-        {/* ── Summary strip (visible from step 2+) ──────────── */}
-        {step >= 2 && (
-          <div
-            className="rounded-2xl border px-4 py-3 flex items-center gap-3 flex-wrap"
-            style={{
-              background: "var(--card)",
-              borderColor: "var(--border)",
-            }}
+        {/* ── Summary strip ─────────────────────────────────── */}
+        <div
+          className="rounded-2xl border px-4 py-3 flex items-center gap-3 flex-wrap"
+          style={{
+            background: "var(--card)",
+            borderColor: "var(--border)",
+          }}
+        >
+          <span
+            className="text-xs uppercase tracking-widest font-medium"
+            style={{ color: "var(--muted-foreground)" }}
           >
-            <span
-              className="text-xs uppercase tracking-widest font-medium"
-              style={{ color: "var(--muted-foreground)" }}
-            >
-              Session
-            </span>
-            {summaryLevel && (
-              <>
-                <ChevronRight size={12} style={{ color: "var(--muted-foreground)" }} />
-                <span
-                  className="text-xs font-bold"
-                  style={{ color: "var(--primary)" }}
-                >
-                  {summaryLevel}
-                </span>
-              </>
-            )}
-            {step >= 2 && categories.length > 0 && (
-              <>
-                <ChevronRight size={12} style={{ color: "var(--muted-foreground)" }} />
-                <span
-                  className="text-xs font-bold"
-                  style={{ color: "var(--foreground)" }}
-                >
-                  {summaryCategories}
-                </span>
-              </>
-            )}
-            {step >= 3 && summaryItems && (
-              <>
-                <ChevronRight size={12} style={{ color: "var(--muted-foreground)" }} />
-                <span
-                  className="text-xs font-bold"
-                  style={{ color: "var(--foreground)" }}
-                >
-                  {summaryItems}
-                </span>
-              </>
-            )}
-          </div>
-        )}
+            Session
+          </span>
+          {examCategory && (
+            <>
+              <ChevronRight size={12} style={{ color: "var(--muted-foreground)" }} />
+              <span
+                className="text-xs font-bold"
+                style={{ color: "var(--primary)" }}
+              >
+                {examCategory}
+              </span>
+            </>
+          )}
+          {categories.length > 0 && (
+            <>
+              <ChevronRight size={12} style={{ color: "var(--muted-foreground)" }} />
+              <span
+                className="text-xs font-bold"
+                style={{ color: "var(--foreground)" }}
+              >
+                {summaryCategories}
+              </span>
+            </>
+          )}
+          {step >= 2 && summaryItems && (
+            <>
+              <ChevronRight size={12} style={{ color: "var(--muted-foreground)" }} />
+              <span
+                className="text-xs font-bold"
+                style={{ color: "var(--foreground)" }}
+              >
+                {summaryItems}
+              </span>
+            </>
+          )}
+        </div>
 
         {/* ── Navigation buttons ─────────────────────────────── */}
         <div className="flex items-center justify-between gap-3 pt-2">
@@ -563,24 +500,17 @@ export default function PracticeSetupPage() {
           )}
 
           {/* Next / Start */}
-          {step < 3 ? (
+          {step < 2 ? (
             <Button
               onClick={() => setStep((s) => s + 1)}
-              disabled={step === 1 ? !step1Valid : !step2Valid}
+              disabled={!step1Valid}
               className="rounded-2xl gap-2 font-heading font-bold px-6"
               style={{
-                background:
-                  (step === 1 ? step1Valid : step2Valid)
-                    ? "var(--primary)"
-                    : "var(--muted)",
-                color:
-                  (step === 1 ? step1Valid : step2Valid)
-                    ? "var(--primary-foreground)"
-                    : "var(--muted-foreground)",
-                cursor:
-                  (step === 1 ? step1Valid : step2Valid)
-                    ? "pointer"
-                    : "not-allowed",
+                background: step1Valid ? "var(--primary)" : "var(--muted)",
+                color: step1Valid
+                  ? "var(--primary-foreground)"
+                  : "var(--muted-foreground)",
+                cursor: step1Valid ? "pointer" : "not-allowed",
               }}
             >
               Continue <ArrowRight size={15} />
@@ -588,16 +518,16 @@ export default function PracticeSetupPage() {
           ) : (
             <Button
               onClick={handleStart}
-              disabled={!step3Valid}
+              disabled={!step2Valid}
               className="rounded-2xl gap-2 font-heading font-bold px-6 transition-all duration-200 hover:scale-105 hover:shadow-lg"
               style={{
-                background: step3Valid
+                background: step2Valid
                   ? "linear-gradient(135deg, var(--primary) 0%, #3730A3 100%)"
                   : "var(--muted)",
-                color: step3Valid
+                color: step2Valid
                   ? "var(--primary-foreground)"
                   : "var(--muted-foreground)",
-                cursor: step3Valid ? "pointer" : "not-allowed",
+                cursor: step2Valid ? "pointer" : "not-allowed",
               }}
             >
               <Sparkles size={15} /> Start Practice Session
