@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -11,8 +11,6 @@ import {
   XCircle,
   Sparkles,
   ChevronRight,
-  Trophy,
-  Brain,
   Loader2,
   X,
   Target,
@@ -126,8 +124,8 @@ function parseMarkdown(text: string): string {
 }
 
 type QuestionState = {
+  // null = not yet answered; non-null = answered (and immediately locked)
   selectedId: string | null;
-  checked: boolean;
   aiHint: string | null;
 };
 
@@ -138,29 +136,38 @@ export default function PracticePage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [finished, setFinished] = useState(false);
   const [loadingAi, setLoadingAi] = useState(false);
-
-  // Flagging state (ported from mockId/page.tsx)
   const [flagged, setFlagged] = useState<Set<number>>(new Set());
 
-  // Maintain state for all questions so users can navigate the grid
   const [states, setStates] = useState<QuestionState[]>(
-    QUESTIONS.map(() => ({ selectedId: null, checked: false, aiHint: null }))
+    QUESTIONS.map(() => ({ selectedId: null, aiHint: null }))
   );
 
   const question = QUESTIONS[currentIndex];
   const currentState = states[currentIndex];
   const total = QUESTIONS.length;
 
-  // Derived Stats
-  const answeredCount = states.filter((s) => s.selectedId !== null).length;
-  const checkedCount = states.filter((s) => s.checked).length;
+  // A question is "answered" the moment the user taps any option
+  const isAnswered = currentState.selectedId !== null;
+  const isCorrect =
+    isAnswered && currentState.selectedId === question.correctId;
+
+  const checkedCount = states.filter((s) => s.selectedId !== null).length;
   const score = states.filter(
-    (s, i) => s.checked && s.selectedId === QUESTIONS[i].correctId
+    (s, i) => s.selectedId === QUESTIONS[i].correctId
   ).length;
   const progressValue = (checkedCount / total) * 100;
-  const isCorrect = currentState.selectedId === question.correctId;
 
-  // ── Flag toggle (ported from mockId/page.tsx) ────────────────────────────
+  // ── Select → immediately lock & reveal feedback ──────────────────────────
+  function handleSelect(id: string) {
+    if (currentState.selectedId !== null) return; // already answered
+    setStates((prev) => {
+      const next = [...prev];
+      next[currentIndex] = { ...next[currentIndex], selectedId: id };
+      return next;
+    });
+  }
+
+  // ── Flag toggle ──────────────────────────────────────────────────────────
   function toggleFlag(index: number) {
     setFlagged((prev) => {
       const next = new Set(prev);
@@ -170,25 +177,7 @@ export default function PracticePage() {
     });
   }
 
-  const handleSelect = (id: string) => {
-    if (currentState.checked) return;
-    setStates((prev) => {
-      const next = [...prev];
-      next[currentIndex] = { ...next[currentIndex], selectedId: id };
-      return next;
-    });
-  };
-
-  const handleCheck = () => {
-    if (!currentState.selectedId) return;
-    setStates((prev) => {
-      const next = [...prev];
-      next[currentIndex] = { ...next[currentIndex], checked: true };
-      return next;
-    });
-  };
-
-  // Shared "advance" logic used by both the inline button and the footer Next button
+  // ── Advance or finish ────────────────────────────────────────────────────
   function advanceOrFinish() {
     if (currentIndex + 1 >= total) {
       setFinished(true);
@@ -197,6 +186,7 @@ export default function PracticePage() {
     }
   }
 
+  // ── AI Hint ──────────────────────────────────────────────────────────────
   const handleAiHint = async () => {
     setLoadingAi(true);
     await new Promise((r) => setTimeout(r, 1400));
@@ -212,33 +202,29 @@ export default function PracticePage() {
     setLoadingAi(false);
   };
 
-  // ── Grid Cell Variant Mapping ────────────────────────────────────────────
+  // ── Sidebar grid cell variant ────────────────────────────────────────────
+  // No "primary/answered" purple state — cells go straight to green or red
   function getCellVariant(
     i: number
   ):
     | "unanswered"
-    | "answered"
     | "correct"
     | "wrong"
     | "current"
-    | "current-answered"
     | "current-correct"
     | "current-wrong" {
     const s = states[i];
     const isCurrent = i === currentIndex;
-    const isAnswered = s.selectedId !== null;
-    const isChecked = s.checked;
-    const isAnsCorrect = isChecked && s.selectedId === QUESTIONS[i].correctId;
+    const answered = s.selectedId !== null;
+    const correct = answered && s.selectedId === QUESTIONS[i].correctId;
 
     if (isCurrent) {
-      if (isChecked) return isAnsCorrect ? "current-correct" : "current-wrong";
-      if (isAnswered) return "current-answered";
-      return "current";
+      if (!answered) return "current";
+      return correct ? "current-correct" : "current-wrong";
     }
 
-    if (isChecked) return isAnsCorrect ? "correct" : "wrong";
-    if (isAnswered) return "answered";
-    return "unanswered";
+    if (!answered) return "unanswered";
+    return correct ? "correct" : "wrong";
   }
 
   // ── Finished Screen ──────────────────────────────────────────────────────
@@ -305,16 +291,16 @@ export default function PracticePage() {
     );
   }
 
-  // ── Main Practice UI ──────────────────────────────────────────────────────
+  // ── Main Practice UI ─────────────────────────────────────────────────────
   return (
     <div className="fixed inset-0 z-[100] bg-background lg:grid lg:grid-cols-[1fr_300px] overflow-hidden text-foreground">
 
       {/* ════════════════════════════════════════
-          LEFT COLUMN — Main Content Area
+          LEFT COLUMN
       ════════════════════════════════════════ */}
       <div className="flex flex-col h-full overflow-hidden border-r border-border">
 
-        {/* ── Minimal Top Navigation ── */}
+        {/* ── Header ── */}
         <header className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-border bg-background/80 backdrop-blur-md shrink-0">
           <div className="flex items-center gap-4">
             <Button
@@ -334,18 +320,16 @@ export default function PracticePage() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <Badge variant="outline" className="hidden sm:inline-flex bg-card">
-              {question.category}
-            </Badge>
-          </div>
+          <Badge variant="outline" className="hidden sm:inline-flex bg-card">
+            {question.category}
+          </Badge>
         </header>
 
-        {/* ── Scrollable Question Area ── */}
+        {/* ── Scrollable Content ── */}
         <div className="flex-1 overflow-y-auto">
           <main className="w-full max-w-3xl mx-auto px-6 py-8 pb-4">
 
-            {/* Progress Header (Mobile Only) */}
+            {/* Mobile progress */}
             <div className="mb-8 space-y-3 lg:hidden">
               <div className="flex justify-between items-center text-xs font-semibold text-muted-foreground uppercase tracking-widest">
                 <span>Question {currentIndex + 1} of {total}</span>
@@ -354,7 +338,6 @@ export default function PracticePage() {
               <Progress value={progressValue} className="h-1.5" />
             </div>
 
-            {/* Question Card */}
             <AnimatePresence mode="wait">
               <motion.div
                 key={question.id}
@@ -363,6 +346,7 @@ export default function PracticePage() {
                 exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.3, ease: "easeInOut" }}
               >
+                {/* Question card */}
                 <Card className="rounded-3xl border shadow-sm bg-card mb-6">
                   <CardContent className="p-8">
                     <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4">
@@ -377,44 +361,46 @@ export default function PracticePage() {
                   </CardContent>
                 </Card>
 
-                {/* Options */}
+                {/* ── Options ── */}
                 <div className="space-y-3 mb-8">
                   {question.options.map((opt) => {
                     const isSelected = currentState.selectedId === opt.id;
                     const isRight = opt.id === question.correctId;
-                    const isChecked = currentState.checked;
+                    const locked = isAnswered;
 
                     let cardClass =
-                      "w-full text-left p-5 rounded-2xl border-[1.5px] transition-all duration-200 cursor-pointer group flex items-center gap-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ";
+                      "w-full text-left p-5 rounded-2xl border-[1.5px] transition-all duration-200 flex items-center gap-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ";
 
-                    if (!isChecked) {
-                      cardClass += isSelected
-                        ? "border-primary bg-primary/5 shadow-sm"
-                        : "border-border bg-card hover:border-border/80 hover:bg-muted/50";
+                    if (!locked) {
+                      // Pre-answer: neutral hover, no primary highlight
+                      cardClass +=
+                        "cursor-pointer border-border bg-card hover:border-primary/50 hover:bg-muted/50";
                     } else if (isRight) {
+                      // Always highlight the correct answer green
                       cardClass +=
-                        "border-[var(--spark-correct-border)] bg-[var(--spark-correct-bg)] text-[var(--spark-correct-text)]";
+                        "cursor-default border-[var(--spark-correct-border)] bg-[var(--spark-correct-bg)] text-[var(--spark-correct-text)]";
                     } else if (isSelected && !isRight) {
+                      // Wrong choice in red
                       cardClass +=
-                        "border-[var(--spark-wrong-border)] bg-[var(--spark-wrong-bg)] text-[var(--spark-wrong-text)]";
+                        "cursor-default border-[var(--spark-wrong-border)] bg-[var(--spark-wrong-bg)] text-[var(--spark-wrong-text)]";
                     } else {
-                      cardClass += "border-border bg-card opacity-50";
+                      // Other options dim
+                      cardClass +=
+                        "cursor-default border-border bg-card opacity-40";
                     }
 
                     return (
                       <button
                         key={opt.id}
-                        disabled={isChecked}
+                        disabled={locked}
                         onClick={() => handleSelect(opt.id)}
                         className={cardClass}
                       >
                         <span
                           className={cn(
                             "w-8 h-8 rounded-xl flex items-center justify-center text-sm font-heading font-bold shrink-0 transition-colors",
-                            !isChecked
-                              ? isSelected
-                                ? "bg-primary text-primary-foreground"
-                                : "bg-muted text-muted-foreground group-hover:bg-muted/80"
+                            !locked
+                              ? "bg-muted text-muted-foreground"
                               : isRight
                               ? "bg-[var(--spark-correct-text)] text-[var(--spark-correct-bg)]"
                               : isSelected
@@ -427,10 +413,10 @@ export default function PracticePage() {
                         <span className="font-medium text-base leading-snug flex-1">
                           {opt.text}
                         </span>
-                        {isChecked && isRight && (
+                        {locked && isRight && (
                           <CheckCircle2 className="w-5 h-5 shrink-0 text-[var(--spark-correct-text)]" />
                         )}
-                        {isChecked && isSelected && !isRight && (
+                        {locked && isSelected && !isRight && (
                           <XCircle className="w-5 h-5 shrink-0 text-[var(--spark-wrong-text)]" />
                         )}
                       </button>
@@ -438,14 +424,14 @@ export default function PracticePage() {
                   })}
                 </div>
 
-                {/* Explanation Card */}
+                {/* ── Explanation card — appears immediately on answer ── */}
                 <AnimatePresence>
-                  {currentState.checked && (
+                  {isAnswered && (
                     <motion.div
                       initial={{ opacity: 0, y: 10, scale: 0.98 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, height: 0 }}
-                      transition={{ duration: 0.4, ease: "easeOut" }}
+                      transition={{ duration: 0.35, ease: "easeOut" }}
                       className="mb-8"
                     >
                       <Card
@@ -497,7 +483,7 @@ export default function PracticePage() {
                             {question.explanation}
                           </p>
 
-                          {/* AI Hint Section */}
+                          {/* AI Hint */}
                           {currentState.aiHint ? (
                             <motion.div
                               initial={{ opacity: 0 }}
@@ -549,36 +535,34 @@ export default function PracticePage() {
                   )}
                 </AnimatePresence>
 
-                {/* ── Inline Check / Next Button (below options) ── */}
-                <motion.div layout className="mb-4">
-                  {!currentState.checked ? (
-                    <Button
-                      size="lg"
-                      className="w-full h-14 rounded-2xl font-heading font-bold text-lg shadow-md transition-all"
-                      disabled={!currentState.selectedId}
-                      onClick={handleCheck}
+                {/* ── Next / Finish button — only shown after answering ── */}
+                <AnimatePresence>
+                  {isAnswered && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.25, ease: "easeOut" }}
+                      className="mb-4"
                     >
-                      Check Answer
-                    </Button>
-                  ) : (
-                    <Button
-                      size="lg"
-                      className="w-full h-14 rounded-2xl font-heading font-bold text-lg shadow-md group"
-                      onClick={advanceOrFinish}
-                    >
-                      {currentIndex + 1 === total
-                        ? "Finish Practice"
-                        : "Next Question"}
-                      <ChevronRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                    </Button>
+                      <Button
+                        size="lg"
+                        className="w-full h-14 rounded-2xl font-heading font-bold text-lg shadow-md group"
+                        onClick={advanceOrFinish}
+                      >
+                        {currentIndex + 1 === total
+                          ? "Finish Practice"
+                          : "Next Question"}
+                        <ChevronRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                      </Button>
+                    </motion.div>
                   )}
-                </motion.div>
+                </AnimatePresence>
               </motion.div>
             </AnimatePresence>
           </main>
         </div>
 
-        {/* ── Navigation Footer (ported from mockId/page.tsx) ── */}
+        {/* ── Navigation Footer (Previous / Flag / Next) ── */}
         <footer className="px-6 py-4 border-t border-border shrink-0 bg-background">
           <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
@@ -631,16 +615,15 @@ export default function PracticePage() {
           </div>
         </footer>
 
-        {/* Mobile: bottom padding for fixed submit bar */}
         <div className="lg:hidden h-20" />
       </div>
 
       {/* ════════════════════════════════════════
-          RIGHT COLUMN — Persistent Sidebar
+          RIGHT COLUMN — Sidebar
       ════════════════════════════════════════ */}
       <aside className="hidden lg:flex flex-col gap-5 sticky top-0 h-screen overflow-y-auto p-5 bg-card border-l border-border">
 
-        {/* ── Score Counter (retained from original practice page — NO timer) ── */}
+        {/* Score counter */}
         <div className="rounded-[var(--radius-lg)] border p-5 text-center border-border bg-muted/40">
           <div className="flex items-center justify-center gap-2 mb-2">
             <Target className="w-4 h-4 text-primary" />
@@ -648,14 +631,13 @@ export default function PracticePage() {
               Current Score
             </p>
           </div>
-
           <p className="font-mono text-[2.5rem] font-extrabold tracking-tight tabular-nums leading-none text-foreground">
             {score}
             <span className="text-xl text-muted-foreground/50">/{total}</span>
           </p>
         </div>
 
-        {/* ── Question Navigation Grid ── */}
+        {/* Question Navigator */}
         <div>
           <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">
             Question Navigator
@@ -676,33 +658,32 @@ export default function PracticePage() {
                     "transition-all duration-100",
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1",
 
+                    // Unanswered, not current — neutral border only
                     variant === "unanswered" &&
                       "border-[1.5px] border-border bg-background text-muted-foreground hover:border-primary hover:text-primary",
 
-                    variant === "answered" &&
-                      "bg-primary border-[1.5px] border-primary text-primary-foreground hover:bg-primary/85",
-
+                    // Correct (not current) — green
                     variant === "correct" &&
                       "bg-[var(--spark-correct-bg)] border-[1.5px] border-[var(--spark-correct-border)] text-[var(--spark-correct-text)]",
 
+                    // Wrong (not current) — red
                     variant === "wrong" &&
                       "bg-[var(--spark-wrong-bg)] border-[1.5px] border-[var(--spark-wrong-border)] text-[var(--spark-wrong-text)]",
 
+                    // Current, not yet answered — neutral ring (no purple)
                     variant === "current" &&
-                      "border-[2.5px] border-primary text-primary font-extrabold bg-background ring-2 ring-primary ring-offset-2",
+                      "border-[2px] border-foreground/30 text-foreground font-extrabold bg-muted ring-2 ring-foreground/20 ring-offset-2",
 
-                    variant === "current-answered" &&
-                      "bg-primary border-[1.5px] border-primary text-primary-foreground ring-2 ring-primary/50 ring-offset-2",
-
+                    // Current + correct — green ring
                     variant === "current-correct" &&
                       "bg-[var(--spark-correct-bg)] border-[1.5px] border-[var(--spark-correct-border)] text-[var(--spark-correct-text)] ring-2 ring-[var(--spark-correct-border)] ring-offset-2",
 
+                    // Current + wrong — red ring
                     variant === "current-wrong" &&
                       "bg-[var(--spark-wrong-bg)] border-[1.5px] border-[var(--spark-wrong-border)] text-[var(--spark-wrong-text)] ring-2 ring-[var(--spark-wrong-border)] ring-offset-2"
                   )}
                 >
                   {i + 1}
-                  {/* Amber flag dot (ported from mockId/page.tsx) */}
                   {isFlagged && (
                     <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-amber-400 ring-1 ring-background" />
                   )}
@@ -732,7 +713,7 @@ export default function PracticePage() {
           </div>
         </div>
 
-        {/* ── Progress Summary Card ── */}
+        {/* Progress summary */}
         <div className="rounded-lg bg-muted/50 border border-border p-3">
           <div className="flex justify-between items-center mb-2">
             <span className="text-xs text-muted-foreground">Progress</span>
@@ -745,15 +726,14 @@ export default function PracticePage() {
             className="h-1.5 bg-muted [&>div]:bg-primary"
           />
           <div className="flex justify-between mt-2 text-[11px] text-muted-foreground">
-            <span>{checkedCount} checked</span>
+            <span>{checkedCount} answered</span>
             <span>{total - checkedCount} remaining</span>
           </div>
         </div>
 
-        {/* Spacer pushes exit to bottom */}
         <div className="flex-1" />
 
-        {/* ── Exit Action (retained from original practice page) ── */}
+        {/* Exit */}
         <div className="space-y-2">
           <Button
             variant="outline"
