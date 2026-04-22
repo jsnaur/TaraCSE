@@ -1,4 +1,3 @@
-// components/sidebar.tsx
 "use client";
 
 import Link from "next/link";
@@ -48,8 +47,15 @@ export function Sidebar({ className = "" }: { className?: string }) {
         : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
     }`;
 
-  const isActive = (href: string) =>
-    pathname === href || pathname?.startsWith(`${href}/`);
+  // Updated isActive function: 
+  // Requires exact match for "/dashboard" to prevent overlapping highlights 
+  // with sub-routes like "/dashboard/practice"
+  const isActive = (href: string) => {
+    if (href === "/dashboard") {
+      return pathname === href;
+    }
+    return pathname === href || pathname?.startsWith(`${href}/`);
+  };
 
   return (
     <aside className={`w-[220px] min-w-[220px] bg-sidebar border-r border-border flex flex-col h-full overflow-y-auto transition-colors duration-200 ${className}`}>
