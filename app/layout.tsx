@@ -16,14 +16,14 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      // Default to dark, suppressHydrationWarning is mandatory for next-themes
-      className={`${inter.variable} ${spaceGrotesk.variable} h-full antialiased dark`}
+      // Default to light, suppressHydrationWarning is mandatory for next-themes
+      className={`${inter.variable} ${spaceGrotesk.variable} h-full antialiased light`}
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col font-sans">
         <ThemeProvider
           attribute="class"
-          defaultTheme="dark"
+          defaultTheme="light"
           enableSystem={false}
           disableTransitionOnChange
         >
