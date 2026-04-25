@@ -23,97 +23,37 @@ import {
   AlertTriangle,
   CheckCircle2,
   Flag,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+// ─── Supabase & Server Actions ────────────────────────────────────────────────
+import { createClient } from "@supabase/supabase-js";
+import { fetchSanitizedQuestions, submitExam, UserSubmission } from "@/app/dashboard/exams/actions";
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface Question {
-  id: number;
+type Option = { text: string };
+
+type Question = {
+  id: string;
   category: string;
-  text: string;
-  options: string[];
-}
+  difficulty: string;
+  question_text: string;
+  options: Option[];
+};
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
+// ─── Constants & Helpers ──────────────────────────────────────────────────────
 
-const QUESTIONS: Question[] = [
-  {
-    id: 1,
-    category: "Vocabulary",
-    text: "Choose the word most OPPOSITE in meaning to the underlined word: The supervisor gave a PERFUNCTORY inspection of the documents before approving them.",
-    options: ["Thorough", "Hasty", "Careless", "Routine"],
-  },
-  {
-    id: 2,
-    category: "Numerical Reasoning",
-    text: "A government employee earns a basic salary of ₱28,500 per month. If she receives a 12% raise, what will her new monthly salary be?",
-    options: ["₱31,920", "₱30,500", "₱32,100", "₱31,500"],
-  },
-  {
-    id: 3,
-    category: "Reading Comprehension",
-    text: "Based on context: 'The barangay tanod remained VIGILANT throughout the night, watching for any suspicious activity in the neighborhood.' What does vigilant most likely mean?",
-    options: [
-      "Alert and watchful",
-      "Tired and restless",
-      "Bored and indifferent",
-      "Confused and uncertain",
-    ],
-  },
-  {
-    id: 4,
-    category: "Analytical Ability",
-    text: "If all Maynilad customers pay their bills, and some Maynilad customers have overdue accounts, which conclusion is definitely TRUE?",
-    options: [
-      "Some customers with overdue accounts pay their bills",
-      "All customers with overdue accounts do not pay",
-      "No customer pays and has an overdue account",
-      "All customers have overdue accounts",
-    ],
-  },
-  {
-    id: 5,
-    category: "Filipino Vocabulary",
-    text: "Piliin ang salitang MAGKASINGKAHULUGAN sa salitang salungguhit: Ang opisyal ay nagpakita ng KATAPATAN sa kanyang trabaho at sa bansa.",
-    options: ["Katiyakan", "Katapangan", "Pagiging tapat", "Pagmamahal"],
-  },
-  {
-    id: 6,
-    category: "Numerical Reasoning",
-    text: "In a Civil Service Review class of 45 students, 60% are women. How many men are in the class?",
-    options: ["18", "27", "15", "20"],
-  },
-  {
-    id: 7,
-    category: "Vocabulary",
-    text: "Select the word that best completes the sentence: The new policy was ________ by the director, meaning it was officially approved and put into effect.",
-    options: ["Ratified", "Nullified", "Suspended", "Contested"],
-  },
-  {
-    id: 8,
-    category: "Clerical Operations",
-    text: "Documents are filed alphabetically. In which order should the following names be arranged? (I) Santos, Maria R. (II) Santos, Jose P. (III) Santillan, Ana (IV) San Pedro, Luis",
-    options: ["IV, III, II, I", "III, IV, II, I", "IV, II, I, III", "I, II, III, IV"],
-  },
-  {
-    id: 9,
-    category: "Analytical Ability",
-    text: "A sequence: 3, 7, 13, 21, 31, ___. What comes next?",
-    options: ["43", "41", "45", "47"],
-  },
-  {
-    id: 10,
-    category: "Filipino Grammar",
-    text: "Piliin ang tamang pangungusap: Ang bawat empleyado ay dapat sumunod sa ____ na patakaran ng tanggapan.",
-    options: ["itinakdang", "itinakda", "itinatakda", "itinakday"],
-  },
-];
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const OPTION_LETTERS = ["A", "B", "C", "D"] as const;
+const OPTION_LETTERS = ["A", "B", "C", "D"];
 const EXAM_DURATION_SECONDS = 2 * 60 * 60 + 45 * 60; // 2h 45m
+
+function parseMarkdown(text: string): string {
+  if (!text) return "";
+  return text
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.+?)\*/g, "<em>$1</em>");
+}
 
 // ─── Timer Hook ───────────────────────────────────────────────────────────────
 
@@ -151,9 +91,11 @@ function formatTime(seconds: number): string {
 function SubmittedScreen({
   answers,
   total,
+  sessionId
 }: {
-  answers: (number | null)[];
+  answers: (string | null)[];
   total: number;
+  sessionId: string | null;
 }) {
   const answered = answers.filter((a) => a !== null).length;
   const skipped = total - answered;
@@ -185,8 +127,8 @@ function SubmittedScreen({
           </p>
         </div>
 
-        <div className="flex gap-4 mt-2">
-          <div className="bg-muted rounded-xl px-6 py-4 text-center">
+        <div className="flex gap-4 mt-2 mb-4">
+          <div className="bg-muted rounded-xl px-6 py-4 text-center w-full">
             <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">
               Answered
             </p>
@@ -197,7 +139,7 @@ function SubmittedScreen({
               </span>
             </p>
           </div>
-          <div className="bg-muted rounded-xl px-6 py-4 text-center">
+          <div className="bg-muted rounded-xl px-6 py-4 text-center w-full">
             <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">
               Skipped
             </p>
@@ -205,22 +147,21 @@ function SubmittedScreen({
           </div>
         </div>
 
-        <div className="flex gap-2 mt-2">
-          <Button
-            size="lg"
-            className="font-heading font-bold"
-            onClick={() => router.push('/dashboard/mock/test-456/results')}
-          >
-            View Results
-          </Button>
-          <Button
-            size="lg"
-            variant="outline"
-            className="font-heading font-bold"
-            onClick={() => window.location.reload()}
-          >
-            Try Again
-          </Button>
+        <div className="flex gap-2 w-full">
+          {sessionId ? (
+            <Button
+              size="lg"
+              className="font-heading font-bold w-full"
+              onClick={() => router.push(`/dashboard/mock/${sessionId}/results`)}
+            >
+              View Results
+            </Button>
+          ) : (
+            <Button size="lg" className="font-heading font-bold w-full" disabled>
+              <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+              Processing...
+            </Button>
+          )}
         </div>
       </div>
     </div>
@@ -230,32 +171,92 @@ function SubmittedScreen({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function MockExamPage() {
+  const router = useRouter();
+
+  // Data State
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [loadingInitial, setLoadingInitial] = useState(true);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+
+  // Exam State
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [answers, setAnswers] = useState<(number | null)[]>(
-    new Array(QUESTIONS.length).fill(null)
-  );
+  const [answers, setAnswers] = useState<(string | null)[]>([]);
   const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDialog, setShowDialog] = useState(false);
   const [flagged, setFlagged] = useState<Set<number>>(new Set());
 
+  // ── Fetch User & Questions on Mount ──
+  useEffect(() => {
+    async function initExam() {
+      // 1. Get the current user
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+      const supabase = createClient(supabaseUrl, supabaseAnonKey);
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setUserId(user.id);
+      }
+
+      // 2. Fetch Mock Questions (fetching 20 for this mock example)
+      const res = await fetchSanitizedQuestions(20);
+      if (res.success && res.data) {
+        setQuestions(res.data);
+        setAnswers(new Array(res.data.length).fill(null));
+      } else {
+        console.error("Failed to load questions", res.error);
+      }
+      setLoadingInitial(false);
+    }
+    initExam();
+  }, []);
+
+  // Use a ref to access latest state inside the countdown callback without triggering re-renders
+  const stateRef = useRef({ answers, questions });
+  useEffect(() => {
+    stateRef.current = { answers, questions };
+  }, [answers, questions]);
+
   const handleTimeExpire = useCallback(() => {
-    setSubmitted(true);
+    // If time expires, auto-submit using the latest state ref
+    autoSubmit(stateRef.current.answers, stateRef.current.questions);
   }, []);
 
   const timeLeft = useCountdown(EXAM_DURATION_SECONDS, handleTimeExpire);
 
-  const question = QUESTIONS[currentIndex];
+  if (loadingInitial) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center space-y-4">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <p className="text-sm font-medium text-muted-foreground uppercase tracking-widest">
+          Preparing Mock Examination...
+        </p>
+      </div>
+    );
+  }
+
+  if (questions.length === 0) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6 text-center">
+        <p>No active questions found in the database.</p>
+      </div>
+    );
+  }
+
+  const question = questions[currentIndex];
   const answeredCount = answers.filter((a) => a !== null).length;
-  const unansweredCount = QUESTIONS.length - answeredCount;
-  const progressValue = (answeredCount / QUESTIONS.length) * 100;
+  const unansweredCount = questions.length - answeredCount;
+  const progressValue = (answeredCount / questions.length) * 100;
 
   const isTimeLow = timeLeft <= 300;       // < 5 min → destructive red
   const isTimeWarning = timeLeft <= 900 && timeLeft > 300; // < 15 min → amber
 
-  function selectOption(optionIndex: number) {
+  function selectOption(text: string) {
     setAnswers((prev) => {
       const next = [...prev];
-      next[currentIndex] = optionIndex;
+      next[currentIndex] = text;
       return next;
     });
   }
@@ -269,9 +270,47 @@ export default function MockExamPage() {
     });
   }
 
-  function handleSubmit() {
+  // ── Secure Submission Logic ──
+  async function performSubmission(currentAnswers: (string | null)[], currentQuestions: Question[]) {
+    setIsSubmitting(true);
     setSubmitted(true);
     setShowDialog(false);
+
+    const timeSpent = EXAM_DURATION_SECONDS - timeLeft;
+
+    // Format for the backend schema
+    const submissions: UserSubmission[] = currentQuestions.map((q, i) => ({
+      question_id: q.id,
+      selected_answer: currentAnswers[i] || "SKIPPED",
+      category: q.category,
+      time_taken_seconds: Math.round(timeSpent / currentQuestions.length), // Estimate avg time per question
+    }));
+
+    if (userId) {
+      const res = await submitExam(
+        userId,
+        "Mock",
+        "Professional",
+        timeSpent,
+        submissions
+      );
+
+      if (res.success && res.data) {
+        setSessionId(res.data.sessionId);
+      } else {
+        console.error("Submission failed:", res.error);
+      }
+    } else {
+      console.error("No active user session found. Cannot save exam.");
+    }
+  }
+
+  function handleSubmit() {
+    performSubmission(answers, questions);
+  }
+
+  function autoSubmit(latestAnswers: (string | null)[], latestQuestions: Question[]) {
+    performSubmission(latestAnswers, latestQuestions);
   }
 
   // Nav grid cell variant
@@ -287,7 +326,7 @@ export default function MockExamPage() {
   }
 
   if (submitted) {
-    return <SubmittedScreen answers={answers} total={QUESTIONS.length} />;
+    return <SubmittedScreen answers={answers} total={questions.length} sessionId={sessionId} />;
   }
 
   return (
@@ -337,7 +376,7 @@ export default function MockExamPage() {
             <div>
               <p className="text-xs text-muted-foreground mb-0.5">Answered</p>
               <p className="font-bold text-primary text-base">
-                {answeredCount}/{QUESTIONS.length}
+                {answeredCount}/{questions.length}
               </p>
             </div>
             <div>
@@ -356,14 +395,18 @@ export default function MockExamPage() {
           </div>
 
           <AlertDialogFooter>
-            <AlertDialogCancel className="font-medium">
+            <AlertDialogCancel disabled={isSubmitting} className="font-medium">
               Go Back
             </AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleSubmit}
+              onClick={(e) => {
+                e.preventDefault();
+                handleSubmit();
+              }}
+              disabled={isSubmitting}
               className="bg-destructive hover:bg-destructive/90 font-heading font-bold"
             >
-              Submit Now
+              {isSubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Submitting...</> : "Submit Now"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -385,7 +428,7 @@ export default function MockExamPage() {
                   TaraCSE — Mock Exam
                 </p>
                 <p className="text-xs text-muted-foreground/60 mt-0.5">
-                  Professional &amp; Subprofessional · {QUESTIONS.length} items · 2h 45m
+                  Professional &amp; Subprofessional · {questions.length} items · 2h 45m
                 </p>
               </div>
 
@@ -413,7 +456,7 @@ export default function MockExamPage() {
               <div className="w-full max-w-3xl mx-auto">
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
-                    Question {currentIndex + 1} of {QUESTIONS.length}
+                    Question {currentIndex + 1} of {questions.length}
                   </span>
                   <span className="text-xs text-muted-foreground">
                     {answeredCount} answered
@@ -439,20 +482,21 @@ export default function MockExamPage() {
                     <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4">
                       Question {currentIndex + 1}
                     </p>
-                    <h2 className="font-heading text-[1.2rem] font-semibold leading-[1.75] text-foreground">
-                      {question.text}
-                    </h2>
+                    <p 
+                      className="font-heading text-[1.2rem] font-semibold leading-[1.75] text-foreground whitespace-pre-line"
+                      dangerouslySetInnerHTML={{ __html: parseMarkdown(question.question_text) }}
+                    />
                   </CardContent>
                 </Card>
 
                 {/* Options — selected state is purely neutral (no correct/wrong colors) */}
                 <div className="flex flex-col gap-3">
                   {question.options.map((opt, i) => {
-                    const isSelected = answers[currentIndex] === i;
+                    const isSelected = answers[currentIndex] === opt.text;
                     return (
                       <button
                         key={i}
-                        onClick={() => selectOption(i)}
+                        onClick={() => selectOption(opt.text)}
                         className={cn(
                           "group flex items-center gap-4 w-full text-left",
                           "p-5 rounded-2xl border-[1.5px]",
@@ -486,7 +530,7 @@ export default function MockExamPage() {
                               : "font-medium text-foreground"
                           )}
                         >
-                          {opt}
+                          {opt.text}
                         </span>
 
                         {/* Dot indicator when selected */}
@@ -545,10 +589,10 @@ export default function MockExamPage() {
                 <Button
                   onClick={() =>
                     setCurrentIndex((i) =>
-                      Math.min(QUESTIONS.length - 1, i + 1)
+                      Math.min(questions.length - 1, i + 1)
                     )
                   }
-                  disabled={currentIndex === QUESTIONS.length - 1}
+                  disabled={currentIndex === questions.length - 1}
                   className="gap-1.5 font-heading font-bold"
                 >
                   Next
@@ -620,7 +664,7 @@ export default function MockExamPage() {
               </p>
 
               <div className="grid grid-cols-5 gap-1.5">
-                {QUESTIONS.map((_, i) => {
+                {questions.map((_, i) => {
                   const variant = getCellVariant(i);
                   const isFlagged = flagged.has(i);
 
@@ -683,7 +727,7 @@ export default function MockExamPage() {
               <div className="flex justify-between items-center mb-2">
                 <span className="text-xs text-muted-foreground">Progress</span>
                 <span className="text-xs font-semibold text-primary">
-                  {answeredCount}/{QUESTIONS.length}
+                  {answeredCount}/{questions.length}
                 </span>
               </div>
               <Progress
