@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getProfile } from "../../actions";
+import { createPracticeSession } from "../actions";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -71,6 +72,7 @@ export default function PracticeSetupPage() {
   const router = useRouter();
 
   const [isLoading, setIsLoading] = useState(true);
+  const [isStarting, setIsStarting] = useState(false);
   const [examCategory, setExamCategory] = useState<string | null>(null);
   
   const [step, setStep] = useState(1);
@@ -166,9 +168,25 @@ export default function PracticeSetupPage() {
   const step2Valid = itemCount !== null;
   const allValid = step1Valid && step2Valid;
 
-  const handleStart = () => {
+  const handleStart = async () => {
     if (!allValid) return;
-    router.push('/dashboard/practice/test-123');
+    setIsStarting(true);
+    
+    try {
+      const res = await createPracticeSession(categories, String(itemCount));
+      
+      if (res?.error || !res?.practiceId) {
+        console.error("Failed to start session:", res?.error);
+        setIsStarting(false);
+        return;
+      }
+
+      // Route to the actual practiceId dynamic route
+      router.push(`/dashboard/practice/${res.practiceId}`);
+    } catch (error) {
+      console.error(error);
+      setIsStarting(false);
+    }
   };
 
   // summary label helpers
@@ -518,7 +536,7 @@ export default function PracticeSetupPage() {
           ) : (
             <Button
               onClick={handleStart}
-              disabled={!step2Valid}
+              disabled={!step2Valid || isStarting}
               className="rounded-2xl gap-2 font-heading font-bold px-6 transition-all duration-200 hover:scale-105 hover:shadow-lg"
               style={{
                 background: step2Valid
@@ -527,10 +545,18 @@ export default function PracticeSetupPage() {
                 color: step2Valid
                   ? "var(--primary-foreground)"
                   : "var(--muted-foreground)",
-                cursor: step2Valid ? "pointer" : "not-allowed",
+                cursor: step2Valid || isStarting ? "pointer" : "not-allowed",
               }}
             >
-              <Sparkles size={15} /> Start Practice Session
+              {isStarting ? (
+                <>
+                  <Sparkles size={15} className="animate-pulse" /> Preparing...
+                </>
+              ) : (
+                <>
+                  <Sparkles size={15} /> Start Practice Session
+                </>
+              )}
             </Button>
           )}
         </div>
