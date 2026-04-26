@@ -57,12 +57,14 @@ function parseMarkdown(text: string): string {
 
 // ─── Timer Hook ───────────────────────────────────────────────────────────────
 
-function useCountdown(initialSeconds: number, onExpire: () => void) {
+function useCountdown(initialSeconds: number, onExpire: () => void, isActive: boolean) {
   const [timeLeft, setTimeLeft] = useState(initialSeconds);
   const onExpireRef = useRef(onExpire);
   onExpireRef.current = onExpire;
 
   useEffect(() => {
+    if (!isActive) return; // Pause timer if not active (e.g., submitted)
+    
     const id = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
@@ -74,7 +76,7 @@ function useCountdown(initialSeconds: number, onExpire: () => void) {
       });
     }, 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [isActive]);
 
   return timeLeft;
 }
@@ -224,7 +226,8 @@ export default function MockExamPage() {
     autoSubmit(stateRef.current.answers, stateRef.current.questions);
   }, []);
 
-  const timeLeft = useCountdown(EXAM_DURATION_SECONDS, handleTimeExpire);
+  // Stop the timer if the user has already submitted the exam to prevent double-submissions
+  const timeLeft = useCountdown(EXAM_DURATION_SECONDS, handleTimeExpire, !submitted);
 
   if (loadingInitial) {
     return (
@@ -246,6 +249,7 @@ export default function MockExamPage() {
   }
 
   const question = questions[currentIndex];
+  const isLastQuestion = currentIndex === questions.length - 1;
   const answeredCount = answers.filter((a) => a !== null).length;
   const unansweredCount = questions.length - answeredCount;
   const progressValue = (answeredCount / questions.length) * 100;
@@ -290,7 +294,7 @@ export default function MockExamPage() {
       const res = await submitExam(
         userId,
         "Mock",
-        "Professional",
+        "Professional", // Or pass the actual selected level dynamically
         timeSpent,
         submissions
       );
@@ -586,18 +590,23 @@ export default function MockExamPage() {
                   </Button>
                 </div>
 
-                <Button
-                  onClick={() =>
-                    setCurrentIndex((i) =>
-                      Math.min(questions.length - 1, i + 1)
-                    )
-                  }
-                  disabled={currentIndex === questions.length - 1}
-                  className="gap-1.5 font-heading font-bold"
-                >
-                  Next
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </Button>
+                {isLastQuestion ? (
+                  <Button
+                    onClick={() => setShowDialog(true)}
+                    className="gap-1.5 font-heading font-bold bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Submit Exam
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={() => setCurrentIndex((i) => i + 1)}
+                    className="gap-1.5 font-heading font-bold"
+                  >
+                    Next
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Button>
+                )}
               </div>
             </footer>
 
