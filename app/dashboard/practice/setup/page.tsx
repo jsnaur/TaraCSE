@@ -15,10 +15,21 @@ import {
   ChevronRight,
   Sparkles,
   ClipboardList,
+  Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { getProfile } from "../../actions";
-import { createPracticeSession } from "../actions";
+import { createPracticeSession, getUserMonetizationStatus } from "../actions";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -75,20 +86,33 @@ export default function PracticeSetupPage() {
   const [isStarting, setIsStarting] = useState(false);
   const [examCategory, setExamCategory] = useState<string | null>(null);
   
+  const [isPremium, setIsPremium] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
+
   const [step, setStep] = useState(1);
   const [categories, setCategories] = useState<Category[]>([]);
   const [itemCount, setItemCount] = useState<ItemCount | null>(null);
 
-  // Fetch the user's exam category on mount
+  // Fetch user's exam category & premium status on mount
   useEffect(() => {
     async function load() {
-      const res = await getProfile();
-      if (res?.profile?.exam_category) {
-        setExamCategory(res.profile.exam_category);
+      const [profileRes, monStatus] = await Promise.all([
+        getProfile(),
+        getUserMonetizationStatus()
+      ]);
+
+      if (profileRes?.profile?.exam_category) {
+        setExamCategory(profileRes.profile.exam_category);
       } else {
         // If no category is found, kick them back to the dashboard to select one
         router.push("/dashboard");
+        return;
       }
+
+      if (monStatus && !monStatus.error) {
+        setIsPremium(monStatus.isPremium);
+      }
+
       setIsLoading(false);
     }
     load();
@@ -190,8 +214,12 @@ export default function PracticeSetupPage() {
   };
 
   // summary label helpers
+  const allowedCategoriesList = availableCategories.filter(
+    (c) => isPremium || (c.id !== "numerical" && c.id !== "analytical")
+  );
+
   const summaryCategories =
-    categories.length === availableCategories.length
+    categories.length === allowedCategoriesList.length
       ? "All Categories"
       : categories
           .map((c) => availableCategories.find((x) => x.id === c)?.label)
@@ -297,29 +325,29 @@ export default function PracticeSetupPage() {
             <button
               onClick={() =>
                 setCategories(
-                  categories.length === availableCategories.length
+                  categories.length === allowedCategoriesList.length
                     ? []
-                    : (availableCategories.map((c) => c.id) as Category[])
+                    : (allowedCategoriesList.map((c) => c.id) as Category[])
                 )
               }
               className="self-start text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-medium transition-all duration-150 hover:opacity-80"
               style={{
                 borderColor:
-                  categories.length === availableCategories.length
+                  categories.length === allowedCategoriesList.length && categories.length > 0
                     ? "var(--primary)"
                     : "var(--border)",
                 color:
-                  categories.length === availableCategories.length
+                  categories.length === allowedCategoriesList.length && categories.length > 0
                     ? "var(--primary)"
                     : "var(--muted-foreground)",
                 background:
-                  categories.length === availableCategories.length
+                  categories.length === allowedCategoriesList.length && categories.length > 0
                     ? "var(--spark-ai-bg)"
                     : "var(--card)",
               }}
             >
               <Layers size={12} />
-              {categories.length === availableCategories.length
+              {categories.length === allowedCategoriesList.length && categories.length > 0
                 ? "Deselect All"
                 : "Select All"}
             </button>
@@ -327,12 +355,20 @@ export default function PracticeSetupPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {availableCategories.map((cat) => {
                 const active = categories.includes(cat.id);
+                const isLocked = !isPremium && (cat.id === "numerical" || cat.id === "analytical");
                 const Icon = cat.icon;
+
                 return (
                   <button
                     key={cat.id}
-                    onClick={() => toggleCategory(cat.id)}
-                    className="text-left rounded-3xl border p-5 flex flex-col gap-3 transition-all duration-200 hover:scale-[1.01] focus:outline-none"
+                    onClick={() => {
+                      if (isLocked) {
+                        setShowPaywall(true);
+                        return;
+                      }
+                      toggleCategory(cat.id);
+                    }}
+                    className={`relative text-left rounded-3xl border p-5 flex flex-col gap-3 transition-all duration-200 focus:outline-none ${isLocked ? "opacity-70 hover:scale-100" : "hover:scale-[1.01]"}`}
                     style={{
                       background: active ? cat.bg : "var(--card)",
                       borderColor: active ? cat.color : "var(--border)",
@@ -341,9 +377,15 @@ export default function PracticeSetupPage() {
                         : "none",
                     }}
                   >
+                    {isLocked && (
+                      <div className="absolute top-4 right-4 bg-background/80 backdrop-blur-sm p-1.5 rounded-full shadow-sm border">
+                        <Lock size={14} className="text-muted-foreground" />
+                      </div>
+                    )}
+
                     <div className="flex items-start justify-between">
                       <div
-                        className="w-10 h-10 rounded-2xl flex items-center justify-center"
+                        className={`w-10 h-10 rounded-2xl flex items-center justify-center ${isLocked ? "grayscale" : ""}`}
                         style={{
                           background: active ? cat.color : "var(--muted)",
                           color: active ? "white" : cat.color,
@@ -393,11 +435,19 @@ export default function PracticeSetupPage() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {ITEM_COUNTS.map((opt) => {
               const active = itemCount === opt.value;
+              const isLocked = !isPremium && (opt.value === 50 || opt.value === "endless");
+
               return (
                 <button
                   key={String(opt.value)}
-                  onClick={() => setItemCount(opt.value)}
-                  className="rounded-3xl border p-5 flex flex-col items-center justify-center gap-2 aspect-square transition-all duration-200 hover:scale-[1.03] focus:outline-none"
+                  onClick={() => {
+                    if (isLocked) {
+                      setShowPaywall(true);
+                      return;
+                    }
+                    setItemCount(opt.value);
+                  }}
+                  className={`relative rounded-3xl border p-5 flex flex-col items-center justify-center gap-2 aspect-square transition-all duration-200 focus:outline-none ${isLocked ? "opacity-70 hover:scale-100" : "hover:scale-[1.03]"}`}
                   style={{
                     background: active ? "var(--spark-ai-bg)" : "var(--card)",
                     borderColor: active ? "var(--primary)" : "var(--border)",
@@ -406,6 +456,12 @@ export default function PracticeSetupPage() {
                       : "none",
                   }}
                 >
+                  {isLocked && (
+                    <div className="absolute top-3 right-3 bg-background/80 backdrop-blur-sm p-1.5 rounded-full shadow-sm border">
+                      <Lock size={12} className="text-muted-foreground" />
+                    </div>
+                  )}
+
                   <span
                     className="font-heading text-4xl font-bold leading-none"
                     style={{
@@ -561,6 +617,32 @@ export default function PracticeSetupPage() {
           )}
         </div>
       </div>
+
+      {/* ── Paywall Modal ────────────────────────────────────────── */}
+      <AlertDialog open={showPaywall} onOpenChange={setShowPaywall}>
+        <AlertDialogContent className="rounded-[32px] sm:rounded-[32px] max-w-sm">
+          <AlertDialogHeader>
+            <div className="mx-auto bg-primary/10 w-16 h-16 rounded-full flex items-center justify-center mb-4">
+              <Lock className="text-primary w-8 h-8" />
+            </div>
+            <AlertDialogTitle className="font-heading text-2xl text-center">Unlock Full Access</AlertDialogTitle>
+            <AlertDialogDescription className="text-center text-base">
+              Numerical & Analytical categories, along with extended item counts, are reserved for Premium users. Unlock everything for a one-time ₱99!
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="sm:justify-center sm:space-x-3 mt-4 flex-col gap-2">
+            <AlertDialogAction
+              onClick={() => router.push("/pricing")}
+              className="rounded-2xl bg-gradient-to-r from-primary to-indigo-600 hover:from-primary/90 hover:to-indigo-600/90 w-full font-bold py-6 text-base"
+            >
+              <Sparkles size={18} className="mr-2" /> Upgrade for ₱99
+            </AlertDialogAction>
+            <AlertDialogCancel className="rounded-2xl border-transparent bg-muted hover:bg-muted/80 w-full sm:mt-0">
+              Maybe Later
+            </AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
