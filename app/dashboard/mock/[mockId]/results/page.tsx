@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   CheckCircle2,
@@ -446,15 +445,26 @@ function ReviewCard({ q, index }: { q: QuestionResult; index: number }) {
 // ─── Confetti Burst ───────────────────────────────────────────────────────────
 
 function ConfettiBurst() {
-  const particles = Array.from({ length: 28 }, (_, i) => ({
-    id: i,
-    x: (Math.random() - 0.5) * 600,
-    y: -(Math.random() * 400 + 100),
-    rotate: Math.random() * 720 - 360,
-    color: ["#f59e0b", "#3b82f6", "#22c55e", "#ef4444", "#8b5cf6", "#ec4899"][Math.floor(Math.random() * 6)],
-    size: Math.random() * 8 + 5,
-    shape: Math.random() > 0.5 ? "circle" : "rect",
-  }));
+  // Use state to calculate particles ONLY on the client to avoid Hydration Mismatch
+  const [particles, setParticles] = useState<any[]>([]);
+
+  useEffect(() => {
+    setParticles(
+      Array.from({ length: 28 }, (_, i) => ({
+        id: i,
+        x: (Math.random() - 0.5) * 600,
+        y: -(Math.random() * 400 + 100),
+        rotate: Math.random() * 720 - 360,
+        color: ["#f59e0b", "#3b82f6", "#22c55e", "#ef4444", "#8b5cf6", "#ec4899"][
+          Math.floor(Math.random() * 6)
+        ],
+        size: Math.random() * 8 + 5,
+        shape: Math.random() > 0.5 ? "circle" : "rect",
+      }))
+    );
+  }, []);
+
+  if (particles.length === 0) return null;
 
   return (
     <div className="pointer-events-none fixed inset-0 flex items-center justify-center z-50 overflow-hidden">
