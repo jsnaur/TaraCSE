@@ -31,12 +31,63 @@ async function getAuthUser() {
   return { user, accessToken };
 }
 
+/**
+ * 1. Monetization Status: Used by frontend to trigger paywalls & UI locks
+ */
+export async function getUserMonetizationStatus() {
+  const authContext = await getAuthUser();
+  if (!authContext) return { error: "Not authenticated" };
+
+  const adminAuthClient = createClient(supabaseUrl, supabaseServiceKey);
+  
+  const { data, error } = await adminAuthClient
+    .from("profiles")
+    .select("is_premium, free_kot_ai_uses_remaining")
+    .eq("id", authContext.user.id)
+    .single();
+
+  if (error || !data) return { error: "Could not fetch monetization status" };
+
+  return { 
+    isPremium: data.is_premium, 
+    remainingAiUses: data.free_kot_ai_uses_remaining 
+  };
+}
+
 export async function createPracticeSession(categories: string[], itemCount: string) {
   const authContext = await getAuthUser();
   if (!authContext) return { error: "Not authenticated" };
 
   const { user, accessToken } = authContext;
-  const dbCategories = categories.map(cat => CATEGORY_MAP[cat] || cat);
+  let dbCategories = categories.map(cat => CATEGORY_MAP[cat] || cat);
+
+  const adminAuthClient = createClient(supabaseUrl, supabaseServiceKey);
+
+  // FETCH TIER STATUS TO PREVENT API ABUSE
+  const { data: profile } = await adminAuthClient
+    .from("profiles")
+    .select("is_premium")
+    .eq("id", user.id)
+    .single();
+
+  const isPremium = profile?.is_premium ?? false;
+  let finalItemCount = itemCount;
+
+  // APPLY FREE TIER RESTRICTIONS ON THE BACKEND
+  if (!isPremium) {
+    // Force 30 items
+    if (finalItemCount !== "30" && parseInt(finalItemCount) > 30 || finalItemCount === "endless") {
+      finalItemCount = "30"; 
+    }
+    // Scrub locked categories
+    dbCategories = dbCategories.filter(
+      cat => cat !== "Numerical Ability" && cat !== "Analytical Ability"
+    );
+    
+    if (dbCategories.length === 0) {
+      return { error: "Selected categories are locked for free users." };
+    }
+  }
 
   const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     global: { headers: { Authorization: `Bearer ${accessToken}` } },
@@ -47,7 +98,7 @@ export async function createPracticeSession(categories: string[], itemCount: str
     .insert({
       user_id: user.id,
       categories: dbCategories,
-      item_count: itemCount,
+      item_count: finalItemCount,
     })
     .select("id")
     .single();
@@ -115,9 +166,6 @@ export async function getPracticeQuestions(practiceId: string) {
   return { questions: safeQuestions, config: session };
 }
 
-/**
- * 3. NEW: Just-In-Time grading to fetch the explanation without exposing it early
- */
 export async function checkPracticeAnswer(questionId: string) {
   const authContext = await getAuthUser();
   if (!authContext) return { error: "Not authenticated" };
@@ -137,4 +185,43 @@ export async function checkPracticeAnswer(questionId: string) {
   const correctId = String.fromCharCode(97 + correctIndex);
 
   return { correctId, explanation: data.explanation };
+}
+
+/**
+ * 2. KOT AI Teaser Strategy: Deduct uses for non-premium users
+ */
+export async function decrementKotAiUsage() {
+  const authContext = await getAuthUser();
+  if (!authContext) return { error: "Not authenticated" };
+
+  const adminAuthClient = createClient(supabaseUrl, supabaseServiceKey);
+
+  // Fetch current status
+  const { data: profile, error: fetchError } = await adminAuthClient
+    .from("profiles")
+    .select("is_premium, free_kot_ai_uses_remaining")
+    .eq("id", authContext.user.id)
+    .single();
+
+  if (fetchError || !profile) return { error: "Could not fetch profile" };
+
+  // If premium, no decrement needed
+  if (profile.is_premium) return { success: true, remaining: "unlimited" };
+
+  // Check if they are out of uses
+  if (profile.free_kot_ai_uses_remaining <= 0) {
+    return { error: "exhausted" };
+  }
+
+  const newRemaining = profile.free_kot_ai_uses_remaining - 1;
+
+  // Deduct one use
+  const { error: updateError } = await adminAuthClient
+    .from("profiles")
+    .update({ free_kot_ai_uses_remaining: newRemaining })
+    .eq("id", authContext.user.id);
+
+  if (updateError) return { error: updateError.message };
+
+  return { success: true, remaining: newRemaining };
 }
