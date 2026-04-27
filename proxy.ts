@@ -1,8 +1,7 @@
-// middleware.ts
 import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server'; // Fixed import path
+import type { NextRequest } from 'next/server';
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   // Check if the route is an admin route
   if (request.nextUrl.pathname.startsWith('/admin')) {
     
