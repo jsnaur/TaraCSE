@@ -2,26 +2,27 @@
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 
-/**
- * Server-side utility to verify if the currently authenticated user is an admin.
- * Queries the profiles table to check the is_admin flag.
- */
 export async function verifyAdminStatus(): Promise<boolean> {
   const cookieStore = await cookies();
   
-  // Initialize standard client for checking current user session
-  // Adjust cookie access based on your standard auth configuration if needed
+  // Robust cookie serialization for Next.js 16
+  const cookieHeader = cookieStore
+    .getAll()
+    .map((c) => `${c.name}=${c.value}`)
+    .join('; ');
+
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       auth: {
         persistSession: false,
+        autoRefreshToken: false,
       },
       global: {
         headers: {
-          // Pass the cookies manually to authenticate the server request
-          Cookie: cookieStore.toString(),
+          // Manually passing the reconstructed cookie string
+          Cookie: cookieHeader,
         },
       },
     }
@@ -31,6 +32,7 @@ export async function verifyAdminStatus(): Promise<boolean> {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
+      console.error('AdminAuth: Invalid or missing session', authError?.message);
       return false;
     }
 

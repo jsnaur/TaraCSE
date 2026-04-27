@@ -3,9 +3,15 @@
   "less.lint.unknownAtRules": "ignore",
   "scss.lint.unknownAtRules": "ignore",
   "tailwindCSS.includeLanguages": {
-    "css": "tailwindcss"
+    "css": "tailwindcss",
+    "typescriptreact": "tailwindcss"
   },
   "files.associations": {
     "*.css": "tailwindcss"
-  }
+  },
+  "tailwindCSS.experimental.classRegex": [
+    ["cva\\(([^)]*)\\)", "[\"'`]([^\"'`]*?)[\"'`]"],
+    ["cx\\(([^)]*)\\)", "(?:'|\"|`)([^']*)(?:'|\"|`)"],
+    ["cn\\(([^)]*)\\)", "(?:'|\"|`)([^']*)(?:'|\"|`)"]
+  ]
 }
