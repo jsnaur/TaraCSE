@@ -2,6 +2,11 @@ import { redirect } from 'next/navigation';
 import { verifyAdminStatus } from '@/lib/admin-auth';
 import { AdminSidebar } from '@/components/admin-sidebar';
 
+// FIX: Force dynamic rendering to prevent Next.js from caching the admin layout
+// and inadvertently serving it to non-admin users.
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export default async function AdminLayout({
   children,
 }: {

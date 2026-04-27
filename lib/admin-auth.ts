@@ -21,10 +21,14 @@ export async function verifyAdminStatus(): Promise<boolean> {
         persistSession: false,
         autoRefreshToken: false,
       },
-      // FIX: Inject the Authorization header so database queries bypass the anonymous RLS block!
       global: {
         headers: {
           Authorization: `Bearer ${accessToken}`
+        },
+        // FIX: Prevent Next.js from caching the database response for this user
+        // This guarantees we always get the live 'is_admin' status from the DB.
+        fetch: (url, options) => {
+          return fetch(url, { ...options, cache: 'no-store' });
         }
       }
     }
