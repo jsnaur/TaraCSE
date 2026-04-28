@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, ElementType, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
+import { MathText } from "@/components/ui/math-text";
 import {
   Table,
   TableBody,
@@ -128,7 +129,7 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
   }
 
   // ─── Bulk Ingest Handlers ───
-    const handleDownloadTemplate = () => {
+  const handleDownloadTemplate = () => {
     const headers = "level\tcategory\tdifficulty\tquestion_text\toption_a\toption_b\toption_c\toption_d\tcorrect_answer\texplanation\n";
     const sample1 = "Professional\tNumerical Ability\tMedium\tA store's daily foot traffic from Monday to Friday was: 120, 145, 130, 160, 180. On which day did the foot traffic decrease?\tWednesday\tTuesday\tThursday\tFriday\tA\tWednesday's traffic of 130 is lower than Tuesday's traffic of 145.\n";
     const sample2 = "Professional\tVerbal Ability\tEasy\tWhich of the following words is NOT a palindrome?\tkayak\tradar\tcustom\tmadam\tC\tA palindrome reads the same forwards and backwards; the word 'custom' does not.\n";
@@ -274,7 +275,10 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
                     filtered.map((item) => (
                       <motion.tr key={item.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="border-border hover:bg-muted/30 group transition-colors">
                         <TableCell className="pl-6 py-4">
-                          <p className="text-sm font-medium text-foreground line-clamp-2 max-w-md">{item.question_text}</p>
+                          <MathText 
+                            text={item.question_text} 
+                            className="text-sm font-medium text-foreground line-clamp-2 max-w-md" 
+                          />
                           <p className="text-[10px] font-bold text-muted-foreground mt-1 uppercase tracking-tighter">{item.level}</p>
                         </TableCell>
                         <TableCell>

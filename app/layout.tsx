@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { inter, spaceGrotesk } from "@/lib/fonts";
 import "./globals.css";
+import "katex/dist/katex.min.css"; // <-- ADD THIS LINE
 import { ThemeProvider } from "@/components/theme-provider";
 
 export const metadata: Metadata = {
