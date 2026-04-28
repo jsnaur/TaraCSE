@@ -70,15 +70,32 @@ export async function deleteQuestion(id: string) {
 /**
  * Adds a single question
  */
-export async function addQuestion(question: Omit<Question, "id" | "created_at">) {
+export async function addQuestion(question: Omit<Question, "id" | "created_at" | "is_active">) {
   const isAdmin = await verifyAdminStatus();
   if (!isAdmin) throw new Error("Unauthorized");
 
   const adminDb = createAdminClient();
   const { error } = await adminDb
     .from("questions")
-    .insert([question]);
+    .insert([{ ...question, is_active: true }]);
 
   if (error) throw new Error("Failed to add question");
+  revalidatePath("/admin/questions");
+}
+
+/**
+ * Updates an existing question
+ */
+export async function updateQuestion(id: string, question: Omit<Question, "id" | "created_at" | "is_active">) {
+  const isAdmin = await verifyAdminStatus();
+  if (!isAdmin) throw new Error("Unauthorized");
+
+  const adminDb = createAdminClient();
+  const { error } = await adminDb
+    .from("questions")
+    .update(question)
+    .eq("id", id);
+
+  if (error) throw new Error("Failed to update question");
   revalidatePath("/admin/questions");
 }
