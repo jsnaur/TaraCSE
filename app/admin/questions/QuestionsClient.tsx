@@ -76,6 +76,9 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
   const [search, setSearch] = useState("");
   const [activeLevel, setActiveLevel] = useState<"All" | "Professional" | "Subprofessional">("All");
   
+  // NEW: Status filter state
+  const [activeStatus, setActiveStatus] = useState<"All" | "Active" | "Inactive">("All");
+  
   // Dialog State
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
@@ -100,11 +103,22 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return questions.filter(item => 
-      (activeLevel === "All" || item.level === activeLevel) &&
-      (item.question_text.toLowerCase().includes(q) || item.category.toLowerCase().includes(q))
-    );
-  }, [questions, search, activeLevel]);
+    return questions.filter(item => {
+      // Check Level Match
+      const matchesLevel = activeLevel === "All" || item.level === activeLevel;
+      
+      // Check Status Match
+      const matchesStatus = 
+        activeStatus === "All" || 
+        (activeStatus === "Active" && item.is_active) || 
+        (activeStatus === "Inactive" && !item.is_active);
+      
+      // Check Search Match
+      const matchesSearch = item.question_text.toLowerCase().includes(q) || item.category.toLowerCase().includes(q);
+
+      return matchesLevel && matchesStatus && matchesSearch;
+    });
+  }, [questions, search, activeLevel, activeStatus]);
 
   async function handleToggleStatus(id: string, current: boolean) {
     try {
@@ -225,31 +239,45 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
 
       {/* ── Main View ── */}
       <Tabs defaultValue="list" className="space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <TabsList className="h-11 rounded-2xl p-1 bg-muted/60">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+          <TabsList className="h-11 rounded-2xl p-1 bg-muted/60 w-fit">
             <TabsTrigger value="list" className="rounded-xl px-6 font-bold data-[state=active]:bg-card">Manage List</TabsTrigger>
             <TabsTrigger value="ingest" className="rounded-xl px-6 font-bold data-[state=active]:bg-card">Bulk Ingest</TabsTrigger>
           </TabsList>
 
-          <div className="flex items-center gap-3">
-            <div className="relative flex-1 md:w-64">
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            <div className="relative w-full sm:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input 
                 value={search} 
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search questions..." 
-                className="pl-9 h-10 rounded-xl bg-card" 
+                className="pl-9 h-10 rounded-xl bg-card w-full" 
               />
             </div>
-            <select 
-              value={activeLevel}
-              onChange={(e) => setActiveLevel(e.target.value as any)}
-              className="h-10 rounded-xl bg-card border px-3 text-sm font-medium focus:outline-none ring-offset-background focus:ring-2 focus:ring-ring"
-            >
-              <option value="All">All Levels</option>
-              <option value="Professional">Professional</option>
-              <option value="Subprofessional">Subprofessional</option>
-            </select>
+            
+            <div className="flex gap-2 w-full sm:w-auto">
+              <select 
+                value={activeLevel}
+                onChange={(e) => setActiveLevel(e.target.value as any)}
+                className="h-10 rounded-xl bg-card border px-3 text-sm font-medium focus:outline-none ring-offset-background focus:ring-2 focus:ring-ring flex-1 sm:flex-none"
+              >
+                <option value="All">All Levels</option>
+                <option value="Professional">Professional</option>
+                <option value="Subprofessional">Subprofessional</option>
+              </select>
+
+              {/* NEW: Status Select Filter */}
+              <select 
+                value={activeStatus}
+                onChange={(e) => setActiveStatus(e.target.value as any)}
+                className="h-10 rounded-xl bg-card border px-3 text-sm font-medium focus:outline-none ring-offset-background focus:ring-2 focus:ring-ring flex-1 sm:flex-none"
+              >
+                <option value="All">All Statuses</option>
+                <option value="Active">Active Only</option>
+                <option value="Inactive">Inactive Only</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -273,25 +301,42 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
                     </TableRow>
                   ) : (
                     filtered.map((item) => (
-                      <motion.tr key={item.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="border-border hover:bg-muted/30 group transition-colors">
+                      <motion.tr 
+                        key={item.id} 
+                        initial={{ opacity: 0 }} 
+                        animate={{ opacity: 1 }} 
+                        exit={{ opacity: 0 }} 
+                        className={`border-border transition-colors group ${!item.is_active ? 'bg-muted/40 opacity-70 hover:opacity-100 hover:bg-muted/60' : 'hover:bg-muted/30'}`}
+                      >
                         <TableCell className="pl-6 py-4">
                           <MathText 
                             text={item.question_text} 
-                            className="text-sm font-medium text-foreground line-clamp-2 max-w-md" 
+                            className={`text-sm font-medium line-clamp-2 max-w-md ${!item.is_active ? 'text-muted-foreground' : 'text-foreground'}`} 
                           />
-                          <p className="text-[10px] font-bold text-muted-foreground mt-1 uppercase tracking-tighter">{item.level}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-tighter">{item.level}</p>
+                            {!item.is_active && (
+                              <Badge variant="secondary" className="text-[9px] h-4 px-1.5 py-0 bg-rose-100 text-rose-600 hover:bg-rose-100 dark:bg-rose-900/30 dark:text-rose-400">Inactive</Badge>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="rounded-lg font-bold text-[10px] bg-background">{item.category}</Badge>
                         </TableCell>
                         <TableCell>
-                          <span className={`text-xs font-bold ${item.difficulty === 'Hard' ? 'text-rose-500' : item.difficulty === 'Medium' ? 'text-amber-500' : 'text-emerald-500'}`}>
+                          <span className={`text-xs font-bold ${!item.is_active ? 'text-muted-foreground' : item.difficulty === 'Hard' ? 'text-rose-500' : item.difficulty === 'Medium' ? 'text-amber-500' : 'text-emerald-500'}`}>
                             {item.difficulty}
                           </span>
                         </TableCell>
                         <TableCell className="text-right pr-6">
                           <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => handleToggleStatus(item.id, item.is_active)}>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 rounded-lg" 
+                              onClick={() => handleToggleStatus(item.id, item.is_active)}
+                              title={item.is_active ? "Deactivate Question" : "Restore Question"}
+                            >
                               {item.is_active ? <Eye className="w-4 h-4 text-emerald-500" /> : <EyeOff className="w-4 h-4 text-muted-foreground" />}
                             </Button>
                             <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-rose-100 hover:text-rose-600 dark:hover:bg-rose-900/40" onClick={() => setDeleteId(item.id)}>
