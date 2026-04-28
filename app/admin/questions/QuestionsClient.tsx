@@ -84,6 +84,16 @@ function StatCard({ label, value, icon: Icon, colorClass, delay }: { label: stri
   );
 }
 
+// OWASP standard: Prepend a single quote to strings starting with formula triggers
+const sanitizeForExport = (text: string) => {
+  if (!text) return '""';
+  let safeText = text.replace(/"/g, '""'); // Escape existing quotes
+  if (/^[=\-+@]/.test(safeText)) {
+    safeText = "'" + safeText;
+  }
+  return `"${safeText}"`;
+};
+
 type QuestionFormData = Omit<Question, "id" | "created_at" | "is_active">;
 
 const defaultFormState: QuestionFormData = {
@@ -122,7 +132,7 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
   // Add/Edit Drawer State
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState(defaultFormState);
+  const [formData, setFormData] = useState<QuestionFormData>(defaultFormState);
   const [isSaving, setIsSaving] = useState(false);
 
   // Bulk Ingest State
@@ -204,7 +214,7 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
     }
   }
 
-  // ─── Export Handler ───
+  // ─── Export Handler (Secured) ───
   const handleExport = () => {
     const headers = ["ID", "Level", "Category", "Difficulty", "Question Text", "Option A", "Option B", "Option C", "Option D", "Correct Answer", "Explanation", "Status"];
     
@@ -214,7 +224,7 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
       let correctLetter = 'A';
       const optionTexts = q.options.map((opt, idx) => {
         if (opt.is_correct) correctLetter = letters[idx];
-        return `"${opt.text.replace(/"/g, '""')}"`; // escape quotes
+        return sanitizeForExport(opt.text);
       });
 
       return [
@@ -222,10 +232,10 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
         q.level,
         q.category,
         q.difficulty,
-        `"${q.question_text.replace(/"/g, '""')}"`,
+        sanitizeForExport(q.question_text),
         ...optionTexts,
         correctLetter,
-        `"${q.explanation.replace(/"/g, '""')}"`,
+        sanitizeForExport(q.explanation),
         q.is_active ? "Active" : "Inactive"
       ].join('\t');
     });
@@ -519,7 +529,6 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
                 {isUploading ? <><Loader2 className="w-5 h-5 animate-spin" /> {uploadStatus}</> : <><UploadCloud className="w-5 h-5" /> Start Bulk Import</>}
               </Button>
             </div>
-            {/* Error / Success states omitted for brevity but remain intact from previous code */}
           </motion.div>
         </TabsContent>
       </Tabs>

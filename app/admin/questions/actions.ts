@@ -3,6 +3,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyAdminStatus } from "@/lib/admin-auth";
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 
 export interface Question {
   id: string;
@@ -15,6 +16,24 @@ export interface Question {
   is_active: boolean;
   created_at: string;
 }
+
+// ─── Zod Schemas for Security Validation ──────────────────────────────────────
+
+const optionSchema = z.object({
+  text: z.string().min(1, "Option text cannot be empty").max(1000, "Option text is too long"),
+  is_correct: z.boolean(),
+});
+
+const questionSchema = z.object({
+  level: z.enum(["Professional", "Subprofessional"]),
+  category: z.enum(["Verbal Ability", "Numerical Ability", "Analytical Ability", "General Information", "Clerical Operations"]),
+  difficulty: z.enum(["Easy", "Medium", "Hard"]),
+  question_text: z.string().min(1, "Question text is required").max(10000, "Question text exceeds maximum length"),
+  options: z.array(optionSchema).length(4, "Exactly 4 options are required"),
+  explanation: z.string().min(1, "Explanation is required").max(10000, "Explanation exceeds maximum length"),
+});
+
+// ─── Actions ──────────────────────────────────────────────────────────────────
 
 /**
  * Fetches questions with optional filtering
@@ -74,10 +93,13 @@ export async function addQuestion(question: Omit<Question, "id" | "created_at" |
   const isAdmin = await verifyAdminStatus();
   if (!isAdmin) throw new Error("Unauthorized");
 
+  // SECURITY: Validate payload before hitting the database
+  const validatedData = questionSchema.parse(question);
+
   const adminDb = createAdminClient();
   const { error } = await adminDb
     .from("questions")
-    .insert([{ ...question, is_active: true }]);
+    .insert([{ ...validatedData, is_active: true }]);
 
   if (error) throw new Error("Failed to add question");
   revalidatePath("/admin/questions");
@@ -90,10 +112,13 @@ export async function updateQuestion(id: string, question: Omit<Question, "id" |
   const isAdmin = await verifyAdminStatus();
   if (!isAdmin) throw new Error("Unauthorized");
 
+  // SECURITY: Validate payload before hitting the database
+  const validatedData = questionSchema.parse(question);
+
   const adminDb = createAdminClient();
   const { error } = await adminDb
     .from("questions")
-    .update(question)
+    .update(validatedData)
     .eq("id", id);
 
   if (error) throw new Error("Failed to update question");
