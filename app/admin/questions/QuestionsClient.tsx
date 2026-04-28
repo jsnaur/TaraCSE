@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useMemo, useEffect, ElementType } from "react";
+import { useState, useMemo, useEffect, ElementType, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useRouter } from "next/navigation";
 import {
   Table,
   TableBody,
@@ -33,10 +34,15 @@ import {
   Trash2,
   Eye,
   EyeOff,
-  ChevronRight,
   Sparkles,
+  UploadCloud,
+  Download,
+  AlertCircle,
+  CheckCircle2,
+  Loader2,
+  FileText
 } from "lucide-react";
-import { Question, toggleQuestionStatus, deleteQuestion, addQuestion } from "./actions";
+import { Question, toggleQuestionStatus, deleteQuestion } from "./actions";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -63,12 +69,22 @@ function StatCard({ label, value, icon: Icon, colorClass, delay }: { label: stri
 
 export default function QuestionsClient({ initialQuestions }: { initialQuestions: Question[] }) {
   const { toast } = useToast();
+  const router = useRouter();
+  
   const [questions, setQuestions] = useState<Question[]>(initialQuestions);
   const [search, setSearch] = useState("");
   const [activeLevel, setActiveLevel] = useState<"All" | "Professional" | "Subprofessional">("All");
   
   // Dialog State
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  // Bulk Ingest State
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState("");
+  const [uploadErrors, setUploadErrors] = useState<{ row: number; issues: string[] }[]>([]);
+  const [uploadResult, setUploadResult] = useState<{ inserted: number; skipped: number; message: string } | null>(null);
 
   useEffect(() => {
     setQuestions(initialQuestions);
@@ -93,8 +109,9 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
     try {
       await toggleQuestionStatus(id, current);
       toast({ title: "Status Updated", description: "Question visibility has been changed." });
+      router.refresh();
     } catch {
-      toast({ title: "Update Failed", description: "Could not update question status." });
+      toast({ title: "Update Failed", description: "Could not update question status.", variant: "destructive" });
     }
   }
 
@@ -104,10 +121,82 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
       await deleteQuestion(deleteId);
       toast({ title: "Question Deleted", description: "Record has been removed from the bank." });
       setDeleteId(null);
+      router.refresh();
     } catch {
-      toast({ title: "Delete Failed", description: "Could not remove question." });
+      toast({ title: "Delete Failed", description: "Could not remove question.", variant: "destructive" });
     }
   }
+
+  // ─── Bulk Ingest Handlers ───
+    const handleDownloadTemplate = () => {
+    const headers = "level\tcategory\tdifficulty\tquestion_text\toption_a\toption_b\toption_c\toption_d\tcorrect_answer\texplanation\n";
+    const sample1 = "Professional\tNumerical Ability\tMedium\tA store's daily foot traffic from Monday to Friday was: 120, 145, 130, 160, 180. On which day did the foot traffic decrease?\tWednesday\tTuesday\tThursday\tFriday\tA\tWednesday's traffic of 130 is lower than Tuesday's traffic of 145.\n";
+    const sample2 = "Professional\tVerbal Ability\tEasy\tWhich of the following words is NOT a palindrome?\tkayak\tradar\tcustom\tmadam\tC\tA palindrome reads the same forwards and backwards; the word 'custom' does not.\n";
+    
+    const blob = new Blob([headers + sample1 + sample2], { type: 'text/tab-separated-values' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'taracse_ingest_template.tsv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setFile(e.target.files[0]);
+      setUploadErrors([]);
+      setUploadResult(null);
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!file) return;
+    setIsUploading(true);
+    setUploadStatus("Validating Data...");
+    setUploadErrors([]);
+    setUploadResult(null);
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      // Small artificial delay to show UI state if processing is too fast
+      await new Promise(resolve => setTimeout(resolve, 600)); 
+      
+      const res = await fetch("/api/admin/ingest", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        if (data.errors) {
+          setUploadErrors(data.errors);
+          toast({ title: "Validation Failed", description: "Please fix the errors in your file and try again.", variant: "destructive" });
+        } else {
+          toast({ title: "Upload Error", description: data.error || "An unexpected error occurred.", variant: "destructive" });
+        }
+      } else {
+        setUploadStatus("Finishing up...");
+        setUploadResult({ inserted: data.inserted, skipped: data.skipped, message: data.message });
+        toast({ title: "Ingestion Complete", description: data.message });
+        setFile(null);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        
+        // Refresh server data to populate the datatable
+        router.refresh();
+      }
+    } catch (error) {
+      toast({ title: "Network Error", description: "Could not reach the server.", variant: "destructive" });
+    } finally {
+      setIsUploading(false);
+      setUploadStatus("");
+    }
+  };
 
   return (
     <div className="space-y-7">
@@ -163,6 +252,7 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
           </div>
         </div>
 
+        {/* ── List Tab ── */}
         <TabsContent value="list" className="m-0">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-card border rounded-2xl overflow-hidden shadow-sm">
             <Table>
@@ -181,7 +271,7 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
                       <TableCell colSpan={4} className="h-32 text-center text-muted-foreground">No questions found matching your criteria.</TableCell>
                     </TableRow>
                   ) : (
-                    filtered.map((item, i) => (
+                    filtered.map((item) => (
                       <motion.tr key={item.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="border-border hover:bg-muted/30 group transition-colors">
                         <TableCell className="pl-6 py-4">
                           <p className="text-sm font-medium text-foreground line-clamp-2 max-w-md">{item.question_text}</p>
@@ -200,7 +290,7 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
                             <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => handleToggleStatus(item.id, item.is_active)}>
                               {item.is_active ? <Eye className="w-4 h-4 text-emerald-500" /> : <EyeOff className="w-4 h-4 text-muted-foreground" />}
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-rose-100 hover:text-rose-600" onClick={() => setDeleteId(item.id)}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-rose-100 hover:text-rose-600 dark:hover:bg-rose-900/40" onClick={() => setDeleteId(item.id)}>
                               <Trash2 className="w-4 h-4" />
                             </Button>
                           </div>
@@ -214,21 +304,125 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
           </motion.div>
         </TabsContent>
 
-        <TabsContent value="ingest" className="m-0">
-          <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="bg-card border border-dashed border-primary/30 rounded-3xl p-8 text-center space-y-4">
-            <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
-              <Database className="w-8 h-8 text-primary" />
-            </div>
-            <h3 className="text-xl font-black font-heading">Bulk Data Ingestion</h3>
-            <p className="text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
-              Paste your TSV formatted data here to insert hundreds of questions at once. 
-              Ensure headers match: <code className="bg-muted px-1.5 py-0.5 rounded text-xs font-bold">level	category	difficulty...</code>
-            </p>
-            <div className="flex justify-center pt-4">
-              <Button variant="outline" className="rounded-2xl h-12 px-8 font-bold border-2 gap-2" onClick={() => window.open('/api/admin/ingest', '_blank')}>
-                Access Ingest Route <ChevronRight className="w-4 h-4" />
+        {/* ── Bulk Ingest Tab ── */}
+        <TabsContent value="ingest" className="m-0 space-y-6">
+          <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="bg-card border rounded-3xl p-6 md:p-8 space-y-6">
+            
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+              <div>
+                <h3 className="text-xl font-black font-heading flex items-center gap-2">
+                  <Database className="w-5 h-5 text-primary" /> Data Ingestion Pipeline
+                </h3>
+                <p className="text-sm text-muted-foreground mt-1">Upload a 10-column TSV file. Headers: <code className="bg-muted px-1.5 py-0.5 rounded text-xs font-bold text-foreground">level, category, difficulty, question_text, option_a, option_b, option_c, option_d, correct_answer, explanation</code></p>
+              </div>
+              <Button variant="outline" onClick={handleDownloadTemplate} className="rounded-xl font-bold gap-2 bg-muted/50">
+                <Download className="w-4 h-4" /> Sample Template
               </Button>
             </div>
+
+            {/* File Dropzone / Selector */}
+            <div 
+              className={`border-2 border-dashed rounded-3xl p-8 text-center transition-colors relative ${file ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/30'}`}
+            >
+              <input 
+                type="file" 
+                accept=".tsv,.csv,.txt"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                disabled={isUploading}
+              />
+              <div className="flex flex-col items-center justify-center space-y-3 pointer-events-none">
+                {file ? (
+                  <>
+                    <div className="w-16 h-16 rounded-2xl bg-primary/20 flex items-center justify-center text-primary">
+                      <FileText className="w-8 h-8" />
+                    </div>
+                    <p className="text-foreground font-bold text-lg">{file.name}</p>
+                    <p className="text-muted-foreground text-sm">{(file.size / 1024).toFixed(2)} KB • Click to change file</p>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center text-muted-foreground">
+                      <UploadCloud className="w-8 h-8" />
+                    </div>
+                    <p className="text-foreground font-bold text-lg">Click or drag a file to upload</p>
+                    <p className="text-muted-foreground text-sm">Supports .tsv files up to 5MB.</p>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex justify-end pt-4 border-t border-border">
+              <Button 
+                onClick={handleUpload} 
+                disabled={!file || isUploading} 
+                className="rounded-2xl h-12 px-8 font-bold gap-2 text-md transition-all"
+              >
+                {isUploading ? (
+                  <><Loader2 className="w-5 h-5 animate-spin" /> {uploadStatus}</>
+                ) : (
+                  <><UploadCloud className="w-5 h-5" /> Start Bulk Import</>
+                )}
+              </Button>
+            </div>
+
+            {/* Error Reporting Area */}
+            <AnimatePresence>
+              {uploadErrors.length > 0 && (
+                <motion.div 
+                  initial={{ opacity: 0, height: 0 }} 
+                  animate={{ opacity: 1, height: 'auto' }} 
+                  exit={{ opacity: 0, height: 0 }}
+                  className="bg-rose-50 border border-rose-200 dark:bg-rose-950/20 dark:border-rose-900 rounded-2xl p-6 overflow-hidden"
+                >
+                  <div className="flex items-center gap-3 text-rose-600 dark:text-rose-400 mb-4">
+                    <AlertCircle className="w-6 h-6" />
+                    <h4 className="font-bold text-lg font-heading">Validation Failed ({uploadErrors.length} rows with issues)</h4>
+                  </div>
+                  <div className="max-h-60 overflow-y-auto space-y-3 pr-4 custom-scrollbar">
+                    {uploadErrors.map((err, idx) => (
+                      <div key={idx} className="bg-white dark:bg-background border border-rose-100 dark:border-rose-900/50 rounded-xl p-3 text-sm">
+                        <span className="font-bold text-rose-600 dark:text-rose-400 mr-3">Row {err.row}:</span>
+                        <ul className="list-disc list-inside text-muted-foreground mt-1 space-y-0.5">
+                          {err.issues.map((issue, i) => (
+                            <li key={i}>{issue}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Success Area */}
+              {uploadResult && (
+                <motion.div 
+                  initial={{ opacity: 0, height: 0 }} 
+                  animate={{ opacity: 1, height: 'auto' }} 
+                  className="bg-emerald-50 border border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-900 rounded-2xl p-6 overflow-hidden"
+                >
+                  <div className="flex items-center gap-3 text-emerald-600 dark:text-emerald-400 mb-2">
+                    <CheckCircle2 className="w-6 h-6" />
+                    <h4 className="font-bold text-lg font-heading">Import Successful</h4>
+                  </div>
+                  <p className="text-sm text-emerald-800 dark:text-emerald-200/80 mb-4">{uploadResult.message}</p>
+                  
+                  <div className="flex gap-4">
+                    <div className="bg-white dark:bg-background border border-emerald-100 dark:border-emerald-900/50 rounded-xl px-4 py-2 flex-1">
+                      <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">New Inserted</p>
+                      <p className="text-2xl font-black text-emerald-600">{uploadResult.inserted}</p>
+                    </div>
+                    <div className="bg-white dark:bg-background border border-emerald-100 dark:border-emerald-900/50 rounded-xl px-4 py-2 flex-1">
+                      <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Skipped Duplicates</p>
+                      <p className="text-2xl font-black text-amber-600">{uploadResult.skipped}</p>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
           </motion.div>
         </TabsContent>
       </Tabs>
