@@ -39,7 +39,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -61,7 +60,7 @@ import {
   BookOpen,
   Check
 } from "lucide-react";
-import { Question, toggleQuestionStatus, deleteQuestion, addQuestion, updateQuestion } from "./actions";
+import { Question, toggleQuestionStatus, deleteQuestion, addQuestion, updateQuestion, revertIngestion } from "./actions";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -142,6 +141,10 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
   const [uploadStatus, setUploadStatus] = useState("");
   const [uploadErrors, setUploadErrors] = useState<{ row: number; issues: string[] }[]>([]);
   const [uploadResult, setUploadResult] = useState<{ inserted: number; skipped: number; message: string } | null>(null);
+  
+  // State to hold IDs for reversion
+  const [lastIngestedIds, setLastIngestedIds] = useState<string[]>([]);
+  const [isReverting, setIsReverting] = useState(false);
 
   useEffect(() => {
     setQuestions(initialQuestions);
@@ -169,6 +172,15 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
       return matchesLevel && matchesStatus && matchesCategory && matchesDifficulty && matchesSearch;
     });
   }, [questions, search, activeLevel, activeStatus, activeCategory, activeDifficulty]);
+
+  // Helper to clear all active filters
+  const clearFilters = () => {
+    setSearch("");
+    setActiveLevel("All");
+    setActiveCategory("All");
+    setActiveDifficulty("All");
+    setActiveStatus("All");
+  };
 
   // ─── Form Handlers ───
   function openAddForm() {
@@ -219,7 +231,6 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
     const headers = ["ID", "Level", "Category", "Difficulty", "Question Text", "Option A", "Option B", "Option C", "Option D", "Correct Answer", "Explanation", "Status"];
     
     const rows = filtered.map(q => {
-      // Map options to letters
       const letters = ['A', 'B', 'C', 'D'];
       let correctLetter = 'A';
       const optionTexts = q.options.map((opt, idx) => {
@@ -277,7 +288,10 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
 
   const handleDownloadTemplate = () => {
     const headers = "level\tcategory\tdifficulty\tquestion_text\toption_a\toption_b\toption_c\toption_d\tcorrect_answer\texplanation\n";
-    const blob = new Blob([headers], { type: 'text/tab-separated-values' });
+    const sample1 = "Professional\tNumerical Ability\tMedium\tWhat is 15% of 200?\t15\t20\t30\t45\tC\t15% of 200 is calculated as 0.15 * 200 = 30.\n";
+    const sample2 = "Subprofessional\tVerbal Ability\tEasy\tWhat is the synonym of \"lucid\"?\tConfusing\tClear\tDark\tComplex\tB\tLucid means expressed clearly or easy to understand.\n";
+    
+    const blob = new Blob([headers + sample1 + sample2], { type: 'text/tab-separated-values' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -293,6 +307,23 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
       setFile(e.target.files[0]);
       setUploadErrors([]);
       setUploadResult(null);
+      setLastIngestedIds([]);
+    }
+  };
+
+  const handleRevert = async () => {
+    if (lastIngestedIds.length === 0) return;
+    setIsReverting(true);
+    try {
+      await revertIngestion(lastIngestedIds);
+      toast({ title: "Reverted", description: `Successfully removed ${lastIngestedIds.length} ingested questions.` });
+      setLastIngestedIds([]);
+      setUploadResult(null);
+      router.refresh();
+    } catch {
+      toast({ title: "Revert Failed", description: "Could not undo ingestion.", variant: "destructive" });
+    } finally {
+      setIsReverting(false);
     }
   };
 
@@ -300,6 +331,10 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
     if (!file) return;
     setIsUploading(true);
     setUploadStatus("Validating Data...");
+    setUploadErrors([]);
+    setUploadResult(null);
+    setLastIngestedIds([]);
+
     const formData = new FormData();
     formData.append("file", file);
 
@@ -310,14 +345,16 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
       if (!res.ok) {
         if (data.errors) {
           setUploadErrors(data.errors);
-          toast({ title: "Validation Failed", description: "Please fix the errors.", variant: "destructive" });
+          toast({ title: "Validation Failed", description: "Please fix the errors in your file.", variant: "destructive" });
         } else {
           toast({ title: "Upload Error", description: data.error, variant: "destructive" });
         }
       } else {
         setUploadStatus("Finishing up...");
         setUploadResult({ inserted: data.inserted, skipped: data.skipped, message: data.message });
+        setLastIngestedIds(data.insertedIds || []);
         toast({ title: "Ingestion Complete", description: data.message });
+        
         setFile(null);
         if (fileInputRef.current) fileInputRef.current.value = "";
         router.refresh();
@@ -361,7 +398,12 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
       <Tabs defaultValue="list" className="space-y-6">
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
           <TabsList className="h-11 rounded-2xl p-1 bg-muted/60 w-fit">
-            <TabsTrigger value="list" className="rounded-xl px-6 font-bold data-[state=active]:bg-card">Manage List</TabsTrigger>
+            <TabsTrigger value="list" className="rounded-xl px-6 font-bold data-[state=active]:bg-card flex items-center gap-2">
+              Manage List
+              <span className="bg-primary/15 text-primary text-[10px] px-2 py-0.5 rounded-full font-black">
+                {filtered.length}
+              </span>
+            </TabsTrigger>
             <TabsTrigger value="ingest" className="rounded-xl px-6 font-bold data-[state=active]:bg-card">Bulk Ingest</TabsTrigger>
           </TabsList>
 
@@ -423,7 +465,28 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
         </div>
 
         {/* ── List Tab ── */}
-        <TabsContent value="list" className="m-0">
+        <TabsContent value="list" className="m-0 space-y-4">
+          
+          {/* Visual Indicator for Filter Status */}
+          <div className="flex items-center justify-between px-1">
+            <p className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              {filtered.length !== questions.length ? (
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary"></span>
+                </span>
+              ) : (
+                <span className="w-2.5 h-2.5 rounded-full bg-muted-foreground/30"></span>
+              )}
+              Showing <strong className="text-foreground">{filtered.length}</strong> {filtered.length === 1 ? 'question' : 'questions'}
+            </p>
+            {filtered.length !== questions.length && (
+              <Button variant="ghost" size="sm" onClick={clearFilters} className="h-8 text-xs text-muted-foreground hover:text-foreground">
+                Clear Filters
+              </Button>
+            )}
+          </div>
+
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-card border rounded-2xl overflow-hidden shadow-sm">
             <Table>
               <TableHeader>
@@ -514,6 +577,7 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
                 <Download className="w-4 h-4" /> Sample Template
               </Button>
             </div>
+            
             <div className={`border-2 border-dashed rounded-3xl p-8 text-center transition-colors relative ${file ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/30'}`}>
               <input type="file" accept=".tsv,.csv,.txt" ref={fileInputRef} onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" disabled={isUploading} />
               <div className="flex flex-col items-center justify-center space-y-3 pointer-events-none">
@@ -524,6 +588,51 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
                 )}
               </div>
             </div>
+
+            {/* Ingestion Results / Status Panels */}
+            {uploadErrors.length > 0 && (
+              <div className="bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 p-4 rounded-2xl space-y-2 mt-4">
+                <h4 className="font-bold text-rose-600 dark:text-rose-400 flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5" /> Validation Errors Found
+                </h4>
+                <ul className="text-sm text-rose-700 dark:text-rose-300 space-y-1 list-disc pl-5 max-h-40 overflow-y-auto custom-scrollbar">
+                  {uploadErrors.map((err, i) => (
+                    <li key={i}>
+                      <strong>Row {err.row}:</strong> {err.issues.join(", ")}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {uploadResult && (
+              <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 p-5 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mt-4">
+                <div>
+                  <h4 className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-2 text-lg">
+                    <CheckCircle2 className="w-5 h-5" /> Ingestion Successful
+                  </h4>
+                  <p className="text-sm text-emerald-700 dark:text-emerald-300 mt-1">
+                    {uploadResult.message}
+                  </p>
+                  <div className="flex gap-4 mt-3">
+                    <Badge variant="outline" className="bg-emerald-100 text-emerald-700 border-emerald-300 shadow-sm">Inserted: {uploadResult.inserted}</Badge>
+                    <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-300 shadow-sm">Skipped: {uploadResult.skipped}</Badge>
+                  </div>
+                </div>
+                {lastIngestedIds.length > 0 && (
+                  <Button 
+                    onClick={handleRevert} 
+                    disabled={isReverting} 
+                    variant="destructive" 
+                    className="rounded-xl font-bold shrink-0"
+                  >
+                    {isReverting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                    Undo Last Import
+                  </Button>
+                )}
+              </div>
+            )}
+
             <div className="flex justify-end pt-4 border-t border-border">
               <Button onClick={handleUpload} disabled={!file || isUploading} className="rounded-2xl h-12 px-8 font-bold gap-2 text-md transition-all">
                 {isUploading ? <><Loader2 className="w-5 h-5 animate-spin" /> {uploadStatus}</> : <><UploadCloud className="w-5 h-5" /> Start Bulk Import</>}

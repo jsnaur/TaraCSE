@@ -173,23 +173,29 @@ export async function POST(request: NextRequest) {
         status: 'success', 
         message: `Processed ${validRows.length} rows. All questions were already in the database. 0 new inserts.`,
         inserted: 0,
-        skipped: skippedCount
+        skipped: skippedCount,
+        insertedIds: []
       }, { status: 200 });
     }
 
-    const { error: insertError } = await supabaseAdmin
+    // NOTE: Added .select('id') here to get the inserted IDs for the revert feature
+    const { data: insertedData, error: insertError } = await supabaseAdmin
       .from('questions')
-      .insert(newQuestionsToInsert);
+      .insert(newQuestionsToInsert)
+      .select('id');
 
     if (insertError) {
       return NextResponse.json({ error: 'Failed to insert questions into the database. Transaction aborted.' }, { status: 500 });
     }
 
+    const insertedIds = insertedData?.map(q => q.id) || [];
+
     return NextResponse.json({ 
       status: 'success', 
       message: `Successfully ingested ${newQuestionsToInsert.length} new questions. Skipped ${skippedCount} duplicates.`,
       inserted: newQuestionsToInsert.length,
-      skipped: skippedCount
+      skipped: skippedCount,
+      insertedIds: insertedIds
     }, { status: 200 });
 
   } catch (err: any) {

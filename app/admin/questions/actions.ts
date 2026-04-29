@@ -124,3 +124,22 @@ export async function updateQuestion(id: string, question: Omit<Question, "id" |
   if (error) throw new Error("Failed to update question");
   revalidatePath("/admin/questions");
 }
+
+/**
+ * Reverts an ingestion by deleting multiple IDs at once
+ */
+export async function revertIngestion(ids: string[]) {
+  const isAdmin = await verifyAdminStatus();
+  if (!isAdmin) throw new Error("Unauthorized");
+
+  if (!ids || ids.length === 0) return;
+
+  const adminDb = createAdminClient();
+  const { error } = await adminDb
+    .from("questions")
+    .delete()
+    .in("id", ids);
+
+  if (error) throw new Error("Failed to revert ingestion");
+  revalidatePath("/admin/questions");
+}
