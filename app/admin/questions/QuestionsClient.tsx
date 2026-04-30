@@ -140,7 +140,12 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState("");
   const [uploadErrors, setUploadErrors] = useState<{ row: number; issues: string[] }[]>([]);
-  const [uploadResult, setUploadResult] = useState<{ inserted: number; skipped: number; message: string } | null>(null);
+  const [uploadResult, setUploadResult] = useState<{ 
+    inserted: number; 
+    skipped: number; 
+    message: string;
+    skippedItems?: { row: number; question_text: string; category: string }[];
+  } | null>(null);
   
   // State to hold IDs for reversion
   const [lastIngestedIds, setLastIngestedIds] = useState<string[]>([]);
@@ -351,7 +356,12 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
         }
       } else {
         setUploadStatus("Finishing up...");
-        setUploadResult({ inserted: data.inserted, skipped: data.skipped, message: data.message });
+        setUploadResult({ 
+          inserted: data.inserted, 
+          skipped: data.skipped, 
+          message: data.message,
+          skippedItems: data.skippedItems 
+        });
         setLastIngestedIds(data.insertedIds || []);
         toast({ title: "Ingestion Complete", description: data.message });
         
@@ -606,29 +616,61 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
             )}
 
             {uploadResult && (
-              <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 p-5 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mt-4">
-                <div>
-                  <h4 className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-2 text-lg">
-                    <CheckCircle2 className="w-5 h-5" /> Ingestion Successful
-                  </h4>
-                  <p className="text-sm text-emerald-700 dark:text-emerald-300 mt-1">
-                    {uploadResult.message}
-                  </p>
-                  <div className="flex gap-4 mt-3">
-                    <Badge variant="outline" className="bg-emerald-100 text-emerald-700 border-emerald-300 shadow-sm">Inserted: {uploadResult.inserted}</Badge>
-                    <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-300 shadow-sm">Skipped: {uploadResult.skipped}</Badge>
+              <div className="space-y-4 mt-4">
+                <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 p-5 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                  <div className="w-full">
+                    <h4 className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-2 text-lg">
+                      <CheckCircle2 className="w-5 h-5" /> Ingestion Successful
+                    </h4>
+                    <p className="text-sm text-emerald-700 dark:text-emerald-300 mt-1">
+                      {uploadResult.message}
+                    </p>
+                    <div className="flex gap-4 mt-3">
+                      <Badge variant="outline" className="bg-emerald-100 text-emerald-700 border-emerald-300 shadow-sm">Inserted: {uploadResult.inserted}</Badge>
+                      <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-300 shadow-sm">Skipped: {uploadResult.skipped}</Badge>
+                    </div>
+
+                    {/* NEW: Skipped Items List */}
+                    {uploadResult.skippedItems && uploadResult.skippedItems.length > 0 && (
+                      <div className="mt-4 border border-amber-200 bg-amber-50/50 dark:bg-amber-900/10 dark:border-amber-800/50 rounded-xl p-4">
+                        <h5 className="text-sm font-bold text-amber-700 dark:text-amber-400 mb-2 flex items-center gap-2">
+                          <AlertCircle className="w-4 h-4" /> Skipped Questions (Already Existed)
+                        </h5>
+                        <ul className="text-xs text-amber-600 dark:text-amber-300 space-y-1.5 list-disc pl-5 max-h-32 overflow-y-auto custom-scrollbar">
+                          {uploadResult.skippedItems.map((item, i) => (
+                            <li key={i}>
+                              <strong className="mr-1">Row {item.row}:</strong> 
+                              <span>{item.question_text}</span> 
+                              <span className="opacity-70 ml-1">({item.category})</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 </div>
+
+                {/* NEW: Prominent Revert / Undo Banner */}
                 {lastIngestedIds.length > 0 && (
-                  <Button 
-                    onClick={handleRevert} 
-                    disabled={isReverting} 
-                    variant="destructive" 
-                    className="rounded-xl font-bold shrink-0"
-                  >
-                    {isReverting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                    Undo Last Import
-                  </Button>
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-rose-50 border border-rose-200 dark:bg-rose-950/30 dark:border-rose-900 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div>
+                      <h4 className="font-bold text-rose-700 dark:text-rose-400 flex items-center gap-2">
+                        <AlertCircle className="w-5 h-5" /> Undo Import
+                      </h4>
+                      <p className="text-sm text-rose-600 dark:text-rose-300 mt-1">
+                        Accidentally uploaded the wrong file? You can safely remove the {lastIngestedIds.length} newly ingested questions.
+                      </p>
+                    </div>
+                    <Button 
+                      onClick={handleRevert} 
+                      disabled={isReverting} 
+                      variant="destructive" 
+                      className="rounded-xl font-bold shrink-0 w-full sm:w-auto shadow-sm hover:shadow-md transition-all"
+                    >
+                      {isReverting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+                      Undo Import Now
+                    </Button>
+                  </motion.div>
                 )}
               </div>
             )}

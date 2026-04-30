@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import Image from "next/image";
@@ -21,7 +21,6 @@ import {
   TrendingUp,
   FileText,
   AlertTriangle,
-  Trophy,
   Target,
   Play,
 } from "lucide-react";
@@ -44,6 +43,7 @@ const DIALOGUES = [
   "Papasa ka, claim it!",
   "One step closer!",
   "Aral muna, bago laro!",
+  "Kaya mo, nandito ako!",
 ];
 
 const NAV_LINKS = [
@@ -159,13 +159,6 @@ const TESTIMONIALS = [
   },
 ];
 
-const STATS = [
-  { value: "2,400+", label: "Active Reviewees", icon: Trophy },
-  { value: "3,000+", label: "Question Bank", icon: FileText },
-  { value: "89%", label: "Pass Rate", icon: Target },
-  { value: "4.9★", label: "User Rating", icon: Star },
-];
-
 /* ─────────────────────────────────────────────
    HOOKS
 ───────────────────────────────────────────── */
@@ -177,17 +170,19 @@ function useIntersectionObserver(threshold = 0.15) {
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const obs = new IntersectionObserver(
+
+    const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
           setVisible(true);
-          obs.disconnect();
+          observer.disconnect();
         }
       },
       { threshold }
     );
-    obs.observe(el);
-    return () => obs.disconnect();
+
+    observer.observe(el);
+    return () => observer.disconnect();
   }, [threshold]);
 
   return { ref, visible };
@@ -199,82 +194,59 @@ function useIntersectionObserver(threshold = 0.15) {
 
 function Logo() {
   return (
-    <Link href="/" className="flex items-center gap-2.5 group flex-shrink-0">
-      <div className="relative w-9 h-9 rounded-xl overflow-hidden shadow-lg shadow-primary/30 group-hover:scale-105 transition-transform duration-200">
-        <Image
-          src={LOGO_URL}
-          alt="TaraCSE Logo"
-          fill
-          className="object-cover"
-          unoptimized
-        />
+    <Link href="/" className="inline-flex items-center gap-3 group">
+      <div className="relative flex h-12 w-12 items-center justify-center rounded-[1.25rem] bg-gradient-to-br from-primary via-violet-500 to-secondary shadow-lg shadow-primary/30 transition-all duration-300 group-hover:scale-105 group-hover:-translate-y-1">
+        <Image src={LOGO_URL} alt="TaraCSE Logo" fill className="object-cover rounded-[1.25rem]" unoptimized />
       </div>
-      <span className="font-heading text-lg font-bold text-foreground tracking-tight">
-        Tara<span className="text-primary">CSE</span>
-      </span>
+      <div className="space-y-0.5 text-left">
+        <p className="text-base font-bold tracking-tight text-foreground transition-colors group-hover:text-primary">
+          Tara<span className="text-primary">CSE</span>
+        </p>
+        <p className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground font-medium">Smart review</p>
+      </div>
     </Link>
   );
 }
 
 function StarRating({ count }: { count: number }) {
   return (
-    <div className="flex gap-0.5">
-      {Array.from({ length: count }).map((_, i) => (
-        <Star key={i} className="w-3.5 h-3.5 fill-accent text-accent" />
+    <div className="flex gap-1">
+      {Array.from({ length: count }).map((_, index) => (
+        <Star key={index} className="h-4 w-4 fill-amber-400 text-amber-400 drop-shadow-sm" />
       ))}
     </div>
   );
 }
 
-/* ─────────────────────────────────────────────
-   NAVBAR
-───────────────────────────────────────────── */
-
 function Navbar() {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 20);
+    const onScroll = () => setScrolled(window.scrollY > 10);
     window.addEventListener("scroll", onScroll);
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
   return (
-    <header
-      className={`sticky top-0 z-50 w-full transition-all duration-300 ${
-        scrolled
-          ? "border-b border-border/60 bg-background/90 backdrop-blur-xl shadow-lg shadow-black/[0.06]"
-          : "bg-transparent"
-      }`}
-    >
-      <nav className="mx-auto max-w-6xl px-4 sm:px-6 flex h-16 items-center justify-between gap-4">
+    <header className={`fixed top-0 inset-x-0 z-50 transition-all duration-500 ${scrolled ? "bg-white/80 dark:bg-slate-950/80 backdrop-blur-2xl shadow-sm border-b border-border/50 py-3" : "bg-transparent py-5"}`}>
+      <nav className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         <Logo />
 
-        <div className="hidden md:flex items-center gap-6">
-          {NAV_LINKS.map((l) => (
-            <Link
-              key={l.href}
-              href={l.href}
-              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors duration-200"
-            >
-              {l.label}
+        <div className="hidden md:flex items-center gap-8 rounded-full bg-white/50 dark:bg-slate-900/50 px-6 py-2 backdrop-blur-md border border-border/50">
+          {NAV_LINKS.map((link) => (
+            <Link key={link.href} href={link.href} className="text-sm font-semibold text-muted-foreground transition-colors hover:text-primary">
+              {link.label}
             </Link>
           ))}
         </div>
 
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <Link
-            href="/login"
-            className="hidden sm:inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium border border-border text-foreground hover:bg-muted/50 hover:border-primary/40 transition-all duration-200"
-          >
+        <div className="flex items-center gap-4">
+          <Link href="/login" className="hidden sm:inline-flex items-center justify-center text-sm font-semibold text-foreground transition-colors hover:text-primary">
             Log in
           </Link>
-          <Link
-            href="/register"
-            className="inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 shadow-md shadow-primary/25 hover:shadow-lg hover:shadow-primary/40 transition-all duration-200 active:scale-[0.97]"
-          >
+          <Link href="/register" className="group inline-flex items-center justify-center gap-2 rounded-full bg-foreground px-5 py-2.5 text-sm font-semibold text-background transition-all hover:bg-primary hover:text-primary-foreground hover:shadow-lg hover:shadow-primary/25 active:scale-95">
             Sign up free
-            <ChevronRight className="w-3.5 h-3.5" />
+            <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
           </Link>
         </div>
       </nav>
@@ -282,31 +254,9 @@ function Navbar() {
   );
 }
 
-/* ─────────────────────────────────────────────
-   HERO
-───────────────────────────────────────────── */
-
-/**
- * FloatingBadge — sequentially revealed after mascot slides in.
- * `show` controls opacity/transform so badges pop in one by one.
- */
-function FloatingBadge({
-  children,
-  className,
-  show = true,
-}: {
-  children: React.ReactNode;
-  className?: string;
-  show?: boolean;
-}) {
+function FloatingBadge({ children, className, show = true }: { children: React.ReactNode; className?: string; show?: boolean }) {
   return (
-    <div
-      className={`absolute rounded-2xl border bg-white/95 dark:bg-card/95 backdrop-blur-md shadow-xl p-3 transition-all duration-500 ease-out ${
-        show
-          ? "opacity-100 translate-y-0 scale-100"
-          : "opacity-0 translate-y-6 scale-90 pointer-events-none"
-      } ${className}`}
-    >
+    <div className={`absolute z-20 rounded-2xl border border-white/20 bg-white/90 dark:bg-slate-900/90 p-3 sm:p-4 shadow-2xl shadow-slate-950/10 backdrop-blur-xl transition-all duration-700 cubic-bezier(0.16, 1, 0.3, 1) ${show ? "opacity-100 translate-y-0 scale-100" : "opacity-0 translate-y-8 scale-95 pointer-events-none"} ${className}`}>
       {children}
     </div>
   );
@@ -315,359 +265,272 @@ function FloatingBadge({
 function Hero() {
   const [mounted, setMounted] = useState(false);
   const [dialogue, setDialogue] = useState(DIALOGUES[0]);
-  
-  // Expanded to 6 badges for a fuller circular pop-up effect around the mascot
-  const [badgesVisible, setBadgesVisible] = useState(Array(6).fill(false));
+  const [badgesVisible, setBadgesVisible] = useState(Array(4).fill(false));
 
   useEffect(() => {
-    const t = setTimeout(() => setMounted(true), 100);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setMounted(true), 150);
+    return () => clearTimeout(timer);
   }, []);
 
-  // Rotate dialogue
   useEffect(() => {
     const interval = setInterval(() => {
       setDialogue(DIALOGUES[Math.floor(Math.random() * DIALOGUES.length)]);
-    }, 3500);
+    }, 4000);
     return () => clearInterval(interval);
   }, []);
 
-  // Stagger badge reveals after mascot slides in
   useEffect(() => {
     if (!mounted) return;
-    const delays = [800, 1050, 1300, 1550, 1800, 2050];
-    const timers = delays.map((d, i) =>
-      setTimeout(() => {
+    const delays = [600, 900, 1200, 1500];
+    const ids = delays.map((delay, index) =>
+      window.setTimeout(() => {
         setBadgesVisible((prev) => {
           const next = [...prev];
-          next[i] = true;
+          next[index] = true;
           return next;
         });
-      }, d)
+      }, delay)
     );
-    return () => timers.forEach(clearTimeout);
+    return () => ids.forEach(clearTimeout);
   }, [mounted]);
 
   return (
-    <section className="relative min-h-[calc(100vh-4rem)] overflow-hidden bg-background flex items-center py-16">
-      {/* ── Subtle light-mode background ── */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        {/* Fine dot grid */}
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage: `radial-gradient(circle, hsl(var(--primary) / 0.12) 1px, transparent 1px)`,
-            backgroundSize: "28px 28px",
-          }}
-        />
-        {/* Soft radial washes */}
-        <div className="absolute -top-32 left-[20%] w-[600px] h-[600px] rounded-full bg-primary/10 blur-[140px]" />
-        <div className="absolute -bottom-20 right-[10%] w-[500px] h-[500px] rounded-full bg-secondary/8 blur-[130px]" />
-        <div className="absolute top-1/2 left-[55%] w-[300px] h-[300px] rounded-full bg-accent/8 blur-[100px]" />
-        {/* Animated soft shape accents */}
-        <div className="absolute top-16 left-[8%] w-20 h-20 bg-primary/15 rounded-full hero-float blur-2xl" />
-        <div className="absolute bottom-32 right-[12%] w-28 h-28 bg-secondary/10 rounded-3xl rotate-45 hero-float-b blur-2xl" />
-      </div>
-
-      <div className="relative mx-auto max-w-6xl px-4 sm:px-6 w-full">
-        <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
-          {/* ── LEFT: Copy ── */}
-          <div
-            className={`space-y-7 text-center lg:text-left transition-all duration-700 ${
-              mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
-            }`}
-          >
-            <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/8 px-4 py-1.5 text-xs font-semibold text-primary shadow-sm">
-              <ShieldCheck className="w-3.5 h-3.5" />
-              For Professional &amp; Subprofessional Levels
-            </div>
-
-            <h1 className="font-heading text-5xl sm:text-6xl lg:text-[3.75rem] font-extrabold text-foreground leading-[1.05] tracking-tight">
-              CSE, Ano Tara?{" "}
-              <span className="block mt-2 text-transparent bg-clip-text bg-gradient-to-r from-primary via-violet-500 to-secondary animate-hero-gradient bg-[length:200%_auto]">
-                Review smarter.
-              </span>
-            </h1>
-
-            <p className="text-muted-foreground text-base sm:text-lg leading-relaxed max-w-lg mx-auto lg:mx-0">
-              Ditch the static PDFs sold on Facebook groups.{" "}
-              <strong className="text-foreground font-semibold">TaraCSE</strong> gives you
-              a real exam simulator, AI-powered explanations, and analytics that show you{" "}
-              <em>exactly</em> what to study next.
-            </p>
-
-            <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">
-              <Link
-                href="/register"
-                className="group inline-flex items-center justify-center gap-2 rounded-xl px-7 py-3.5 text-sm font-bold bg-primary text-primary-foreground hover:bg-primary/90 shadow-xl shadow-primary/30 hover:shadow-primary/50 transition-all duration-300 active:scale-[0.97]"
-              >
-                <Play className="w-4 h-4 fill-white" />
-                Start Practicing Free
-                <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1" />
-              </Link>
-              <Link
-                href="#features"
-                className="inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3.5 text-sm font-semibold border border-border/80 text-foreground hover:border-primary/50 hover:bg-primary/5 transition-all duration-200"
-              >
-                See how it works
-                <ChevronRight className="w-4 h-4" />
-              </Link>
-            </div>
-
-            {/* Social proof */}
-            <div className="flex items-center gap-3 justify-center lg:justify-start pt-2">
-              <div className="flex -space-x-2">
-                {["CR", "JM", "PG", "AL", "RS"].map((av) => (
-                  <div
-                    key={av}
-                    className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-secondary border-2 border-background flex items-center justify-center text-[10px] font-bold text-white shadow-md"
-                  >
-                    {av}
-                  </div>
-                ))}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                <span className="font-semibold text-foreground">2,400+</span> reviewees already practicing
-              </p>
-            </div>
+    <section className="relative overflow-hidden bg-background pt-32 pb-20 sm:pt-40 sm:pb-24 lg:px-8">
+      {/* Background Gradients */}
+      <div className="absolute top-0 inset-x-0 h-[800px] w-full bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/10 via-background to-background pointer-events-none" />
+      <div className="absolute right-0 top-32 h-[400px] w-[400px] rounded-full bg-violet-500/10 blur-[100px] pointer-events-none" />
+      
+      <div className="relative mx-auto grid max-w-7xl gap-16 px-4 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+        
+        {/* Left Content */}
+        <div className="space-y-10">
+          <div className={`inline-flex items-center gap-2.5 rounded-full border border-primary/20 bg-primary/5 px-4 py-2 text-sm font-semibold text-primary shadow-sm backdrop-blur-md transition-all duration-700 ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+            <ShieldCheck className="h-4 w-4" />
+            Built for Professional & Subprofessional
           </div>
 
-          {/* ── RIGHT: Mascot + Floating Badges ── */}
-          <div className="relative flex items-center justify-center mt-12 lg:mt-0">
-            <div
-              className="relative w-full flex justify-center"
-              style={{ minHeight: "clamp(360px, 60vw, 560px)" }}
-            >
-              {/* Glow ring */}
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="w-72 h-72 sm:w-96 sm:h-96 rounded-full bg-gradient-to-br from-primary/20 via-violet-400/10 to-secondary/15 blur-3xl animate-pulse-soft" />
+          <div className={`space-y-6 transition-all duration-700 delay-100 ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
+            <h1 className="text-5xl font-black tracking-tight text-foreground sm:text-6xl lg:text-7xl leading-[1.1]">
+              Pass the CSE with review that is{" "}
+              <span className="block text-transparent bg-clip-text bg-gradient-to-r from-primary via-violet-500 to-secondary pb-2">
+                smart, fast, and modern.
+              </span>
+            </h1>
+            <p className="max-w-2xl text-lg leading-relaxed text-muted-foreground sm:text-xl">
+              Ditch the old PDFs and outdated reviewers. TaraCSE gives you real exam simulations, instant AI explanations, and analytics that pinpoint exactly what to study next.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-4 pt-4">
+              <Link href="/register" className="group inline-flex items-center justify-center gap-2 rounded-full bg-primary px-8 py-4 text-base font-bold text-primary-foreground shadow-xl shadow-primary/25 transition-all hover:bg-primary/90 hover:-translate-y-0.5 active:scale-95">
+                <Play className="h-5 w-5 fill-current" />
+                Start practicing free
+              </Link>
+              <Link href="#features" className="inline-flex items-center justify-center gap-2 rounded-full border-2 border-border/80 bg-background px-8 py-4 text-base font-bold text-foreground shadow-sm transition-all hover:bg-muted/50 hover:-translate-y-0.5">
+                See features
+                <ChevronRight className="h-4 w-4" />
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4 pt-8 border-t border-border/50">
+              <div>
+                <p className="text-3xl font-black text-foreground">3k+</p>
+                <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Questions</p>
               </div>
-
-              {/* ── Mascot & Bubble Container ── 
-                  Wrapped tightly to ensure the bubble is always bound directly above the image, 
-                  regardless of the outer container's stretch. 
-              */}
-              <div
-                className={`relative z-10 flex flex-col items-center justify-end transition-all duration-700 ease-out ${
-                  mounted ? "opacity-100 translate-x-0" : "opacity-0 translate-x-20"
-                }`}
-                style={{ transitionDelay: "200ms" }}
-              >
-                <div className="relative inline-flex flex-col items-center">
-                  {/* Speech bubble - strongly anchored to the top of the image wrapper */}
-                  <div
-                    className={`absolute -top-12 sm:-top-16 z-20 transition-all duration-500 ${
-                      mounted ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-4"
-                    } animate-bounce-slow`}
-                    style={{ transitionDelay: "600ms" }}
-                  >
-                    <div className="relative bg-white text-primary px-5 py-2.5 rounded-2xl shadow-xl shadow-primary/15 border border-primary/10 font-bold text-sm sm:text-base tracking-tight whitespace-nowrap">
-                      {dialogue}
-                      <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-white border-b border-r border-primary/10 rotate-45" />
-                    </div>
-                  </div>
-
-                  <Image
-                    src={MASCOT_URL}
-                    alt="Kukot — TaraCSE mascot"
-                    width={480}
-                    height={480}
-                    className="w-56 sm:w-72 md:w-80 lg:w-[26rem] h-auto drop-shadow-[0_24px_36px_rgba(108,99,224,0.35)] transition-transform duration-500 hover:scale-[1.02]"
-                    unoptimized
-                    priority
-                  />
-                </div>
-
-                {/* Ground shadow */}
-                <div className="w-3/4 h-6 bg-black/10 blur-[12px] rounded-[100%] -mt-3" />
+              <div>
+                <p className="text-3xl font-black text-foreground">89%</p>
+                <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Pass rate</p>
               </div>
-
-              {/*
-                ─── CIRCULAR FLOATING BADGES ───
-                Positioned relative to the central container for a wrap-around effect.
-              */}
-
-              {/* Badge 1: Score — Top Left */}
-              <FloatingBadge
-                show={badgesVisible[0]}
-                className="border-primary/25 left-0 top-[10%] sm:top-[12%] sm:-left-4 lg:-left-6 w-44 z-20"
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0">
-                    <TrendingUp className="w-4 h-4 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-muted-foreground">Your Score</p>
-                    <p className="font-heading text-base font-bold text-primary">84% ↑+6</p>
-                  </div>
-                </div>
-              </FloatingBadge>
-
-              {/* Badge 2: AI Explanation — Top Right */}
-              <FloatingBadge
-                show={badgesVisible[1]}
-                className="border-violet-400/30 right-0 top-[18%] sm:top-[20%] sm:-right-4 lg:-right-6 w-48 z-20"
-              >
-                <div className="flex items-start gap-2">
-                  <div className="w-6 h-6 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <Sparkles className="w-3.5 h-3.5 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-[9px] font-semibold text-primary mb-0.5">AI Explanation</p>
-                    <p className="text-[9px] text-muted-foreground leading-snug">
-                      "Perspicacious" means having ready insight. "Shrewd" is the best match.
-                    </p>
-                  </div>
-                </div>
-              </FloatingBadge>
-
-              {/* Badge 3: Accent Element — Mid Left */}
-              <FloatingBadge
-                show={badgesVisible[2]}
-                className="border-green-400/30 left-[5%] top-[45%] sm:-left-6 lg:-left-12 w-auto p-2.5 z-10 rounded-full bg-white dark:bg-card/95"
-              >
-                <Target className="w-5 h-5 text-green-500" />
-              </FloatingBadge>
-
-              {/* Badge 4: Accent Element — Mid Right */}
-              <FloatingBadge
-                show={badgesVisible[3]}
-                className="border-sky-400/30 right-[5%] top-[55%] sm:-right-6 lg:-right-12 w-auto p-2.5 z-10 rounded-full bg-white dark:bg-card/95"
-              >
-                <Clock className="w-5 h-5 text-sky-500" />
-              </FloatingBadge>
-
-              {/* Badge 5: Streak — Bottom Left */}
-              <FloatingBadge
-                show={badgesVisible[4]}
-                className="border-accent/30 left-2 bottom-[20%] sm:bottom-[15%] sm:-left-6 lg:-left-8 w-36 z-20"
-              >
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-full bg-accent/15 flex items-center justify-center flex-shrink-0">
-                    <Zap className="w-4 h-4 text-accent" />
-                  </div>
-                  <div>
-                    <p className="text-[9px] font-semibold text-accent">7-day streak!</p>
-                    <p className="text-[9px] text-muted-foreground">Keep it up 🔥</p>
-                  </div>
-                </div>
-              </FloatingBadge>
-
-              {/* Badge 6: Rank — Bottom Right */}
-              <FloatingBadge
-                show={badgesVisible[5]}
-                className="border-secondary/30 right-2 bottom-[10%] sm:bottom-[8%] sm:-right-4 lg:-right-6 w-36 z-20"
-              >
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-full bg-secondary/15 flex items-center justify-center flex-shrink-0">
-                    <Trophy className="w-4 h-4 text-secondary" />
-                  </div>
-                  <div>
-                    <p className="text-[9px] font-semibold text-secondary">Rank #12</p>
-                    <p className="text-[9px] text-muted-foreground">Top 5% 🎉</p>
-                  </div>
-                </div>
-              </FloatingBadge>
+              <div>
+                <p className="text-3xl font-black text-foreground">24/7</p>
+                <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Access</p>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* ── Stats row ── */}
-        <div
-          className={`mt-16 lg:mt-20 grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 transition-all duration-700 delay-700 ${
-            mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
-          }`}
-        >
-          {STATS.map(({ value, label, icon: Icon }) => (
-            <div
-              key={label}
-              className="group rounded-2xl border border-border/60 bg-white/70 dark:bg-card/60 backdrop-blur-sm p-4 sm:p-5 text-center hover:border-primary/30 hover:bg-white dark:hover:bg-card hover:shadow-md hover:shadow-primary/8 transition-all duration-300"
-            >
-              <Icon className="w-5 h-5 text-primary mx-auto mb-2 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-200" />
-              <p className="font-heading text-2xl font-extrabold text-foreground">{value}</p>
-              <p className="text-[11px] font-medium text-muted-foreground mt-0.5">{label}</p>
+        {/* Right Content - Mascot & UI Showcase */}
+        <div className="relative mx-auto w-full max-w-lg lg:max-w-none">
+          {/* Running Light Border Container */}
+          <div className={`relative p-[3px] overflow-hidden rounded-[2.5rem] shadow-[0_20px_80px_rgba(0,0,0,0.08)] dark:shadow-[0_40px_120px_rgba(15,23,42,0.6)] transition-all duration-1000 cubic-bezier(0.16, 1, 0.3, 1) ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-16"}`}>
+            
+            {/* Background Base */}
+            <div className="absolute inset-0 bg-slate-200 dark:bg-slate-800" />
+
+            {/* The Spinning Light Edge (Explicit Hex to guarantee visibility) */}
+            <div className="absolute left-1/2 top-1/2 h-[200%] w-[200%] -translate-x-1/2 -translate-y-1/2 animate-[spin_3s_linear_infinite] bg-[conic-gradient(from_0deg,transparent_0_75%,#8b5cf6_100%)] opacity-90 blur-[1px]" />
+
+            {/* Inner Main Card Area */}
+            <div className="relative z-10 w-full h-full rounded-[2.35rem] bg-gradient-to-b from-slate-50 to-white dark:from-slate-900 dark:to-slate-950 p-6 sm:p-8">
+              
+              {/* Feature Bars Container */}
+              <div className="space-y-3">
+                {/* Practice Mode Bar */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-2xl bg-background border border-border/60 px-4 py-3 shadow-sm hover:border-primary/30 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-500/10">
+                      <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse shrink-0" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Practice Mode</p>
+                      <p className="text-sm font-semibold text-foreground">Guided Learning</p>
+                    </div>
+                  </div>
+                  <div className="rounded-full bg-primary/10 border border-primary/10 px-3 py-1.5 text-[10px] sm:text-[11px] font-bold text-primary w-full sm:w-auto text-center">
+                    KOT AI - Klarong Obhetibong Tugon
+                  </div>
+                </div>
+
+                {/* Mock Exam Bar */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-2xl bg-background border border-border/60 px-4 py-3 shadow-sm hover:border-secondary/30 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary/10">
+                      <Clock className="h-4 w-4 text-secondary animate-pulse" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Mock Exam</p>
+                      <p className="text-sm font-semibold text-foreground">Full CSE Simulation</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-center gap-1.5 rounded-full bg-secondary/10 border border-secondary/10 px-3 py-1.5 text-[10px] sm:text-[11px] font-bold text-secondary w-full sm:w-auto text-center">
+                    <Target className="h-3 w-3" />
+                    Strict Timer • No AI Help
+                  </div>
+                </div>
+              </div>
+
+              {/* Mascot Showcase Stage */}
+              <div className="relative mt-12 sm:mt-16 flex flex-col items-center justify-center">
+                <div className="absolute inset-0 bg-gradient-to-tr from-primary/20 to-secondary/20 blur-[80px] rounded-full z-0" />
+                
+                {/* Floating Mascot & Speech Bubble */}
+                <div className="relative z-10 w-56 h-56 sm:w-64 sm:h-64 animate-float-slow">
+                  
+                  {/* Speech Bubble */}
+                  <div className="absolute -top-6 -right-4 sm:-right-8 rounded-2xl bg-white dark:bg-slate-800 px-5 py-3.5 shadow-2xl border border-border/50 animate-float-soft z-20 hidden sm:block">
+                    <p className="text-sm font-bold text-primary whitespace-nowrap">"{dialogue}"</p>
+                    {/* Speech Bubble Tail */}
+                    <div className="absolute -bottom-[9px] left-6 w-4 h-4 bg-white dark:bg-slate-800 border-b border-r border-border/50 rotate-45 transform origin-center" />
+                  </div>
+
+                  <Image src={MASCOT_URL} alt="Kukot AI Buddy" fill className="object-contain drop-shadow-2xl" unoptimized priority />
+                </div>
+
+                <div className="relative z-10 text-center mt-6 space-y-2">
+                  <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-primary mb-2">
+                    <Sparkles className="h-3 w-3" />
+                    Meet Kukot
+                  </div>
+                  <h3 className="text-2xl font-black text-foreground">Your AI Review Buddy</h3>
+                  <p className="text-sm text-muted-foreground max-w-[280px] mx-auto leading-relaxed">
+                    Smart explanations and instant feedback to keep you moving.
+                  </p>
+                </div>
+              </div>
+
+              {/* Bottom Metrics */}
+              <div className="mt-8 grid grid-cols-2 gap-3">
+                <div className="rounded-2xl border border-border/50 bg-background/50 p-4 text-center transition-colors hover:bg-background">
+                  <p className="text-2xl font-black text-foreground">84%</p>
+                  <p className="mt-1 text-xs font-medium text-muted-foreground">Avg. Score Boost</p>
+                </div>
+                <div className="rounded-2xl border border-border/50 bg-background/50 p-4 text-center transition-colors hover:bg-background">
+                  <p className="text-2xl font-black text-foreground">7d</p>
+                  <p className="mt-1 text-xs font-medium text-muted-foreground">Active Streak</p>
+                </div>
+              </div>
             </div>
-          ))}
+          </div>
+
+          {/* Floating Badges */}
+          <FloatingBadge show={badgesVisible[0]} className="-left-8 top-48 w-[210px] hidden lg:block">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                <TrendingUp className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Mastery Level</p>
+                <p className="font-bold text-foreground">84% Ready</p>
+              </div>
+            </div>
+          </FloatingBadge>
+
+          <FloatingBadge show={badgesVisible[1]} className="-right-12 lg:-right-16 top-[20rem] lg:top-[22rem] w-[210px] hidden lg:block">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-secondary/10 text-secondary">
+                <Brain className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">AI Insights</p>
+                <p className="font-bold text-foreground">Guided Learning</p>
+              </div>
+            </div>
+          </FloatingBadge>
         </div>
       </div>
     </section>
   );
 }
-
-/* ─────────────────────────────────────────────
-   WHY TARACSE
-───────────────────────────────────────────── */
 
 function WhyTaraCSE() {
   const { ref, visible } = useIntersectionObserver();
 
   return (
-    <section id="why" ref={ref} className="py-24 bg-background relative overflow-hidden">
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] rounded-full bg-primary/5 blur-[100px]" />
-      </div>
-
-      <div className="relative mx-auto max-w-6xl px-4 sm:px-6">
-        <div
-          className={`text-center space-y-3 mb-14 transition-all duration-700 ${
-            visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
-          }`}
-        >
-          <div className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-4 py-1.5 text-xs font-semibold text-accent">
-            <AlertTriangle className="w-3.5 h-3.5" />
+    <section id="why" ref={ref} className="relative overflow-hidden bg-slate-50 dark:bg-slate-900/50 py-24 px-4 sm:px-6 lg:px-8 border-y border-border/50">
+      <div className="pointer-events-none absolute left-0 top-1/2 h-[500px] w-[500px] -translate-y-1/2 rounded-full bg-primary/5 blur-[120px]" />
+      
+      <div className="relative mx-auto max-w-7xl">
+        <div className={`space-y-4 text-center transition-all duration-700 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
+          <div className="inline-flex items-center gap-2 rounded-full bg-rose-500/10 px-4 py-2 text-xs font-bold uppercase tracking-widest text-rose-600 dark:text-rose-400">
+            <AlertTriangle className="h-3.5 w-3.5" />
             Sound familiar?
           </div>
-          <h2 className="font-heading text-3xl sm:text-4xl font-bold text-foreground tracking-tight">
-            Why TaraCSE beats the old way
-          </h2>
-          <p className="text-muted-foreground max-w-md mx-auto text-sm sm:text-base">
-            Traditional reviewers leave you guessing. TaraCSE gives you a data-driven edge.
+          <h2 className="text-3xl font-black tracking-tight text-foreground sm:text-4xl md:text-5xl">The old way is holding you back.</h2>
+          <p className="mx-auto max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+            Traditional reviewers leave you guessing. TaraCSE gives you a modern, data-driven edge with practice, timing, and intelligent insights all in one place.
           </p>
         </div>
 
-        <div
-          className={`grid md:grid-cols-2 gap-6 transition-all duration-700 delay-200 ${
-            visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
-          }`}
-        >
-          {/* Pain */}
-          <div className="rounded-2xl border border-red-200 bg-white dark:bg-card p-6 sm:p-8 space-y-4 shadow-sm hover:shadow-md hover:border-red-300 transition-all duration-300">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 rounded-xl bg-red-50 border border-red-100 flex items-center justify-center">
-                <FileText className="w-5 h-5 text-red-400" />
+        <div className="mt-16 grid gap-8 lg:grid-cols-2">
+          {/* Bad Way */}
+          <div className="group relative rounded-[2.5rem] border-2 border-red-100 dark:border-red-900/30 bg-white dark:bg-slate-950 p-8 sm:p-10 shadow-xl shadow-red-900/5 transition-all hover:shadow-2xl hover:shadow-red-900/10">
+            <div className="flex items-center gap-4 mb-8">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-red-50 dark:bg-red-900/20 text-red-500">
+                <FileText className="h-6 w-6" />
               </div>
               <div>
-                <p className="font-heading text-base font-bold text-foreground">Static PDF Reviewers</p>
-                <p className="text-xs text-muted-foreground">The old way (Facebook PDFs)</p>
+                <p className="text-2xl font-bold text-foreground">Static PDFs</p>
+                <p className="text-sm font-medium text-muted-foreground">The outdated Facebook way</p>
               </div>
             </div>
-            <ul className="space-y-3">
-              {PAIN_POINTS.map((p) => (
-                <li key={p} className="flex items-start gap-3 text-sm text-muted-foreground">
-                  <XCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-                  {p}
+            <ul className="space-y-5">
+              {PAIN_POINTS.map((point) => (
+                <li key={point} className="flex items-start gap-3 text-muted-foreground group-hover:text-foreground/80 transition-colors">
+                  <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-400" />
+                  <span className="leading-relaxed">{point}</span>
                 </li>
               ))}
             </ul>
           </div>
 
-          {/* Solution */}
-          <div className="rounded-2xl border border-primary/25 bg-white dark:bg-card p-6 sm:p-8 space-y-4 relative overflow-hidden shadow-sm hover:shadow-lg hover:shadow-primary/10 hover:border-primary/50 transition-all duration-300">
-            <div className="absolute top-0 right-0 w-40 h-40 rounded-full bg-primary/8 blur-3xl pointer-events-none" />
-            <div className="flex items-center gap-3 mb-2 relative">
-              <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/15 flex items-center justify-center">
-                <TrendingUp className="w-5 h-5 text-primary" />
+          {/* Good Way */}
+          <div className="group relative rounded-[2.5rem] border-2 border-primary/20 bg-white dark:bg-slate-950 p-8 sm:p-10 shadow-xl shadow-primary/5 transition-all hover:border-primary/40 hover:shadow-2xl hover:shadow-primary/10">
+            <div className="absolute top-0 right-8 -translate-y-1/2 rounded-full bg-gradient-to-r from-primary to-secondary px-4 py-1.5 text-xs font-bold text-white shadow-lg">
+              The Solution
+            </div>
+            <div className="flex items-center gap-4 mb-8">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                <TrendingUp className="h-6 w-6" />
               </div>
               <div>
-                <p className="font-heading text-base font-bold text-foreground">TaraCSE Platform</p>
-                <p className="text-xs text-muted-foreground">The smarter way to review</p>
+                <p className="text-2xl font-bold text-foreground">TaraCSE Platform</p>
+                <p className="text-sm font-medium text-muted-foreground">The smarter way to review</p>
               </div>
             </div>
-            <ul className="space-y-3 relative">
-              {SOLUTIONS.map((s) => (
-                <li key={s} className="flex items-start gap-3 text-sm text-foreground">
-                  <CheckCircle2 className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
-                  {s}
+            <ul className="space-y-5">
+              {SOLUTIONS.map((solution) => (
+                <li key={solution} className="flex items-start gap-3 text-foreground font-medium">
+                  <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+                  <span className="leading-relaxed">{solution}</span>
                 </li>
               ))}
             </ul>
@@ -677,57 +540,36 @@ function WhyTaraCSE() {
     </section>
   );
 }
-
-/* ─────────────────────────────────────────────
-   FEATURES
-───────────────────────────────────────────── */
 
 function Features() {
   const { ref, visible } = useIntersectionObserver();
 
   return (
-    <section id="features" ref={ref} className="py-24 bg-muted/30 relative">
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-px h-24 bg-gradient-to-b from-transparent via-border to-transparent" />
-
-      <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        <div
-          className={`text-center space-y-3 mb-14 transition-all duration-700 ${
-            visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
-          }`}
-        >
-          <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/8 px-4 py-1.5 text-xs font-semibold text-primary">
-            <Sparkles className="w-3.5 h-3.5" />
-            Core Features
+    <section id="features" ref={ref} className="bg-background py-24 px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl">
+        <div className={`space-y-4 text-center transition-all duration-700 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
+          <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-2 text-xs font-bold uppercase tracking-widest text-primary">
+            <Sparkles className="h-3.5 w-3.5" />
+            Core features
           </div>
-          <h2 className="font-heading text-3xl sm:text-4xl font-bold text-foreground tracking-tight">
-            Everything you need to pass
-          </h2>
-          <p className="text-muted-foreground max-w-md mx-auto text-sm sm:text-base">
-            TaraCSE is designed around one goal: getting you through that exam on your first try.
+          <h2 className="text-3xl font-black tracking-tight text-foreground sm:text-4xl md:text-5xl">Everything you need to pass.</h2>
+          <p className="mx-auto max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+            Built from the ground up to simulate the real exam, track your weak points, and explain the hardest logic simply.
           </p>
         </div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          {FEATURES.map(({ icon: Icon, title, description, color, bg, border, delay }, i) => (
+        <div className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          {FEATURES.map(({ icon: Icon, title, description, color, bg, border, delay }) => (
             <div
               key={title}
-              className={`group rounded-2xl border ${border} bg-white dark:bg-card p-6 space-y-4 shadow-sm hover:shadow-xl hover:shadow-primary/8 transition-all duration-500 hover:-translate-y-2 ${
-                visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
-              }`}
-              style={{
-                transitionDelay: visible ? delay : "0ms",
-                transitionDuration: "600ms",
-              }}
+              className={`group relative rounded-[2rem] border border-border/60 bg-white dark:bg-slate-900/50 p-8 shadow-lg shadow-slate-900/5 transition-all duration-500 hover:-translate-y-2 hover:border-${color.split('-')[1]}/30 hover:shadow-2xl ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-12"}`}
+              style={{ transitionDelay: visible ? delay : "0ms" }}
             >
-              <div
-                className={`w-12 h-12 rounded-xl ${bg} border ${border} flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-all duration-300`}
-              >
-                <Icon className={`w-6 h-6 ${color}`} />
+              <div className={`mb-6 inline-flex h-16 w-16 items-center justify-center rounded-2xl ${bg} transition-transform group-hover:scale-110 duration-300`}>
+                <Icon className={`h-8 w-8 ${color}`} />
               </div>
-              <div className="space-y-2">
-                <h3 className={`font-heading text-base font-bold ${color}`}>{title}</h3>
-                <p className="text-muted-foreground text-sm leading-relaxed">{description}</p>
-              </div>
+              <h3 className="text-xl font-bold text-foreground mb-3">{title}</h3>
+              <p className="text-sm leading-relaxed text-muted-foreground group-hover:text-foreground/80 transition-colors">{description}</p>
             </div>
           ))}
         </div>
@@ -735,202 +577,81 @@ function Features() {
     </section>
   );
 }
-
-/* ─────────────────────────────────────────────
-   MASCOT BREAK SECTION
-───────────────────────────────────────────── */
-
-function MascotCallout() {
-  const { ref, visible } = useIntersectionObserver(0.2);
-
-  return (
-    <section ref={ref} className="py-16 overflow-hidden bg-background">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        <div
-          className={`relative rounded-3xl overflow-hidden transition-all duration-700 ${
-            visible ? "opacity-100 scale-100" : "opacity-0 scale-95"
-          }`}
-        >
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/12 via-background to-secondary/10" />
-          <div className="absolute inset-0 border border-primary/15 rounded-3xl" />
-          <div
-            className="absolute inset-0 opacity-[0.04]"
-            style={{
-              backgroundImage: `radial-gradient(circle at 1px 1px, hsl(var(--primary)) 1px, transparent 0)`,
-              backgroundSize: "20px 20px",
-            }}
-          />
-
-          <div className="relative flex flex-col md:flex-row items-center gap-8 p-8 sm:p-12">
-            <div className="flex-shrink-0 w-36 sm:w-44 animate-float-slow">
-              <Image
-                src={MASCOT_URL}
-                alt="Kukot mascot"
-                width={220}
-                height={220}
-                className="w-full h-auto drop-shadow-[0_16px_32px_rgba(108,99,224,0.35)]"
-                unoptimized
-              />
-            </div>
-
-            <div className="text-center md:text-left space-y-4 flex-1">
-              <div className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-3 py-1 text-xs font-semibold text-accent">
-                <Zap className="w-3 h-3" /> Hi, I'm Kukot!
-              </div>
-              <h2 className="font-heading text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight">
-                Your study buddy for the CSE.
-              </h2>
-              <p className="text-muted-foreground text-sm sm:text-base leading-relaxed max-w-lg">
-                Ako si <strong className="text-foreground">Kukot</strong>, ang inyong guide sa paghahanda para sa Civil Service Exam.
-                Kasama ninyo ako sa bawat practice question, mock exam, at AI explanation para siguruhing pumasa kayo!
-              </p>
-              <Link
-                href="/register"
-                className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-bold bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/25 transition-all duration-200 active:scale-[0.97]"
-              >
-                Practice with Kukot
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ─────────────────────────────────────────────
-   PRICING
-───────────────────────────────────────────── */
 
 function Pricing() {
   const { ref, visible } = useIntersectionObserver();
 
   return (
-    <section id="pricing" ref={ref} className="py-24 bg-muted/30 relative overflow-hidden">
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[700px] h-[300px] rounded-full bg-primary/6 blur-[100px]" />
-      </div>
-
-      <div className="relative mx-auto max-w-6xl px-4 sm:px-6">
-        <div
-          className={`text-center space-y-3 mb-14 transition-all duration-700 ${
-            visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
-          }`}
-        >
-          <div className="inline-flex items-center gap-2 rounded-full border border-secondary/30 bg-secondary/10 px-4 py-1.5 text-xs font-semibold text-secondary">
-            <CreditCard className="w-3.5 h-3.5" />
+    <section id="pricing" ref={ref} className="relative overflow-hidden bg-slate-50 dark:bg-slate-900/30 py-24 px-4 sm:px-6 lg:px-8 border-t border-border/50">
+      <div className="pointer-events-none absolute right-0 top-0 h-[600px] w-[600px] rounded-full bg-secondary/5 blur-[120px]" />
+      <div className="relative mx-auto max-w-7xl">
+        <div className={`space-y-4 text-center transition-all duration-700 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
+          <div className="inline-flex items-center gap-2 rounded-full bg-secondary/10 px-4 py-2 text-xs font-bold uppercase tracking-widest text-secondary">
+            <CreditCard className="h-3.5 w-3.5" />
             Pricing
           </div>
-          <h2 className="font-heading text-3xl sm:text-4xl font-bold text-foreground tracking-tight">
-            Start free. Go premium when ready.
-          </h2>
-          <p className="text-muted-foreground max-w-lg mx-auto text-sm sm:text-base">
-            No credit card required. Upgrade via{" "}
-            <strong className="text-foreground">GCash</strong> — verified through Facebook Messenger.
+          <h2 className="text-3xl font-black tracking-tight text-foreground sm:text-4xl md:text-5xl">Start free. Go premium when ready.</h2>
+          <p className="mx-auto max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+            No credit card required. Upgrade via GCash and get fast manual activation through Messenger.
           </p>
         </div>
 
-        <div
-          className={`grid md:grid-cols-2 gap-6 max-w-3xl mx-auto transition-all duration-700 delay-200 ${
-            visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
-          }`}
-        >
-          {/* Free */}
-          <div className="rounded-2xl border border-border bg-white dark:bg-card p-7 flex flex-col shadow-sm hover:shadow-md transition-all duration-300">
-            <div className="mb-6">
-              <p className="font-heading text-lg font-bold text-foreground mb-1">Free</p>
-              <div className="flex items-baseline gap-1">
-                <span className="font-heading text-4xl font-extrabold text-foreground">₱0</span>
-                <span className="text-muted-foreground text-sm">/ forever</span>
-              </div>
-              <p className="text-muted-foreground text-xs mt-1.5">Perfect for getting started.</p>
+        <div className="mt-16 grid gap-8 lg:grid-cols-2 lg:gap-12 items-center">
+          {/* Free Tier */}
+          <div className="rounded-[2.5rem] border border-border bg-white dark:bg-slate-950 p-8 sm:p-10 shadow-xl shadow-slate-900/5 transition-all hover:shadow-2xl lg:ml-auto w-full max-w-lg">
+            <p className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Free Starter</p>
+            <div className="mt-4 flex items-end gap-2">
+              <span className="text-6xl font-black text-foreground">₱0</span>
+              <span className="mb-2 text-base font-medium text-muted-foreground">/ forever</span>
             </div>
-
-            <ul className="space-y-2.5 flex-1 mb-7">
+            <p className="mt-4 text-sm leading-relaxed text-muted-foreground">Perfect for getting a feel of the platform with daily practice.</p>
+            
+            <div className="my-8 h-px w-full bg-border/60" />
+            
+            <ul className="space-y-4 text-sm font-medium">
               {FREE_FEATURES.map(({ label, included }) => (
-                <li key={label} className="flex items-center gap-2.5 text-sm">
-                  {included ? (
-                    <CheckCircle2 className="w-4 h-4 text-primary flex-shrink-0" />
-                  ) : (
-                    <XCircle className="w-4 h-4 text-muted-foreground/40 flex-shrink-0" />
-                  )}
-                  <span className={included ? "text-foreground" : "text-muted-foreground/50 line-through"}>
-                    {label}
-                  </span>
+                <li key={label} className="flex items-center gap-3">
+                  {included ? <CheckCircle2 className="h-5 w-5 text-primary shrink-0" /> : <XCircle className="h-5 w-5 text-muted-foreground/30 shrink-0" />}
+                  <span className={included ? "text-foreground" : "text-muted-foreground/50"}>{label}</span>
                 </li>
               ))}
             </ul>
-
-            <Link
-              href="/register"
-              className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold border border-border text-foreground hover:border-primary/50 hover:bg-primary/5 transition-all duration-200"
-            >
+            <Link href="/register" className="mt-10 inline-flex w-full items-center justify-center rounded-full border-2 border-border/80 bg-background px-6 py-4 text-base font-bold text-foreground transition-all hover:bg-muted hover:border-foreground/20">
               Get started free
             </Link>
           </div>
 
-          {/* Premium */}
-          <div className="rounded-2xl border-2 border-primary/40 bg-white dark:bg-card p-7 flex flex-col relative overflow-hidden shadow-lg shadow-primary/8 hover:shadow-xl hover:shadow-primary/15 hover:border-primary/70 transition-all duration-300">
-            <div className="absolute top-0 right-0 w-48 h-48 rounded-full bg-primary/8 blur-3xl pointer-events-none" />
-            <div className="absolute top-5 right-5">
-              <span className="text-[10px] font-bold tracking-wide bg-gradient-to-r from-primary to-secondary text-white px-2.5 py-1 rounded-full shadow-md">
-                MOST POPULAR
-              </span>
-            </div>
-
-            <div className="mb-6 relative">
-              <p className="font-heading text-lg font-bold text-foreground mb-1">Premium</p>
-              <div className="flex items-baseline gap-1">
-                <span className="font-heading text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">
-                  ₱99
-                </span>
-                <span className="text-muted-foreground text-sm">/ month</span>
+          {/* Premium Tier */}
+          <div className="relative rounded-[2.5rem] border-2 border-primary bg-white dark:bg-slate-950 p-8 sm:p-10 shadow-2xl shadow-primary/20 scale-100 lg:scale-105 w-full max-w-lg mx-auto lg:mr-auto z-10">
+            <div className="absolute -top-5 inset-x-0 flex justify-center">
+              <div className="rounded-full bg-gradient-to-r from-primary to-secondary px-6 py-2 text-xs font-bold uppercase tracking-widest text-white shadow-lg shadow-primary/30">
+                Most Popular
               </div>
-              <p className="text-muted-foreground text-xs mt-1.5">
-                Full access. Pay via GCash, verified on Messenger.
-              </p>
             </div>
-
-            <ul className="space-y-2.5 flex-1 mb-7 relative">
+            <p className="text-sm font-bold uppercase tracking-widest text-primary mt-2">Premium</p>
+            <div className="mt-4 flex items-end gap-2">
+              <span className="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">₱99</span>
+              <span className="mb-2 text-base font-medium text-muted-foreground">/ month</span>
+            </div>
+            <p className="mt-4 text-sm leading-relaxed text-foreground/80">Full unrestricted access. Everything you need to guarantee a pass.</p>
+            
+            <div className="my-8 h-px w-full bg-border/60" />
+            
+            <ul className="space-y-4 text-sm font-semibold text-foreground">
               {PREMIUM_FEATURES.map(({ label }) => (
-                <li key={label} className="flex items-center gap-2.5 text-sm">
-                  <CheckCircle2 className="w-4 h-4 text-primary flex-shrink-0" />
-                  <span className="text-foreground">{label}</span>
+                <li key={label} className="flex items-start gap-3">
+                  <CheckCircle2 className="mt-0.5 h-5 w-5 text-primary shrink-0" />
+                  <span>{label}</span>
                 </li>
               ))}
             </ul>
-
-            <div className="space-y-3 relative">
-              <Link
-                href="/upgrade"
-                className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-bold bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all duration-200 active:scale-[0.97]"
-              >
-                <Zap className="w-4 h-4" />
-                Unlock Premium via GCash
-              </Link>
-              <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
-                <MessageCircle className="w-3.5 h-3.5" />
-                <span>Verified through Facebook Messenger within minutes</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-10 max-w-2xl mx-auto rounded-2xl border border-secondary/20 bg-secondary/5 p-5">
-          <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-lg bg-secondary/20 flex items-center justify-center flex-shrink-0">
-              <MessageCircle className="w-4 h-4 text-secondary" />
-            </div>
-            <div>
-              <p className="font-heading text-sm font-semibold text-foreground mb-1">
-                How Premium activation works
-              </p>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Send ₱99 to our GCash number, then message us your receipt screenshot via Facebook Messenger.
-                Our team manually activates your Premium account within{" "}
-                <strong className="text-foreground">15–30 minutes</strong> during operating hours (8AM – 8PM daily).
-              </p>
+            <Link href="/upgrade" className="mt-10 group inline-flex w-full items-center justify-center gap-2 rounded-full bg-foreground px-6 py-4 text-base font-bold text-background shadow-xl transition-all hover:bg-primary hover:text-primary-foreground hover:-translate-y-1">
+              <Zap className="h-5 w-5 fill-current" />
+              Unlock Premium via GCash
+            </Link>
+            <div className="mt-5 flex items-center justify-center gap-2 text-xs font-medium text-muted-foreground">
+              <MessageCircle className="h-4 w-4" />
+              Fast manual verification via Messenger
             </div>
           </div>
         </div>
@@ -939,58 +660,42 @@ function Pricing() {
   );
 }
 
-/* ─────────────────────────────────────────────
-   TESTIMONIALS
-───────────────────────────────────────────── */
-
 function Testimonials() {
   const { ref, visible } = useIntersectionObserver();
 
   return (
-    <section id="testimonials" ref={ref} className="py-24 bg-background relative overflow-hidden">
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-1/2 right-0 w-[400px] h-[400px] rounded-full bg-accent/5 blur-[100px]" />
-      </div>
-
-      <div className="relative mx-auto max-w-6xl px-4 sm:px-6">
-        <div
-          className={`text-center space-y-3 mb-14 transition-all duration-700 ${
-            visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
-          }`}
-        >
-          <div className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-4 py-1.5 text-xs font-semibold text-accent">
-            <Star className="w-3.5 h-3.5 fill-accent" />
+    <section id="testimonials" ref={ref} className="bg-background py-24 px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl">
+        <div className={`space-y-4 text-center transition-all duration-700 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
+          <div className="inline-flex items-center gap-2 rounded-full bg-amber-500/10 px-4 py-2 text-xs font-bold uppercase tracking-widest text-amber-600 dark:text-amber-500">
+            <Star className="h-3.5 w-3.5 fill-current" />
             Testimonials
           </div>
-          <h2 className="font-heading text-3xl sm:text-4xl font-bold text-foreground tracking-tight">
-            Real passers. Real results.
-          </h2>
-          <p className="text-muted-foreground max-w-sm mx-auto text-sm sm:text-base">
-            Hear from reviewees who replaced their PDF stacks with TaraCSE.
+          <h2 className="text-3xl font-black tracking-tight text-foreground sm:text-4xl md:text-5xl">Real passers. Real results.</h2>
+          <p className="mx-auto max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+            Hear from reviewees who threw away their PDF stacks and passed with TaraCSE.
           </p>
         </div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {TESTIMONIALS.map(({ name, role, avatar, quote, stars }, i) => (
-            <div
+        <div className="mt-16 grid gap-6 lg:grid-cols-3">
+          {TESTIMONIALS.map(({ name, role, avatar, quote, stars }, index) => (
+            <article
               key={name}
-              className={`rounded-2xl border border-border/80 bg-white dark:bg-card p-6 space-y-4 shadow-sm hover:border-primary/30 hover:shadow-lg hover:shadow-primary/8 transition-all duration-500 hover:-translate-y-1 ${
-                visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
-              }`}
-              style={{ transitionDelay: visible ? `${i * 100}ms` : "0ms" }}
+              className={`group relative rounded-[2rem] border border-border/80 bg-slate-50 dark:bg-slate-900/40 p-8 shadow-sm transition-all duration-500 hover:-translate-y-2 hover:shadow-xl ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-12"}`}
+              style={{ transitionDelay: visible ? `${index * 150}ms` : "0ms" }}
             >
               <StarRating count={stars} />
-              <p className="text-sm text-foreground leading-relaxed italic">"{quote}"</p>
-              <div className="flex items-center gap-3 pt-2 border-t border-border">
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
+              <p className="mt-6 text-base leading-relaxed text-foreground font-medium">"{quote}"</p>
+              <div className="mt-8 flex items-center gap-4 border-t border-border/50 pt-6">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-secondary text-sm font-bold text-white shadow-md">
                   {avatar}
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-foreground">{name}</p>
-                  <p className="text-xs text-muted-foreground">{role}</p>
+                  <p className="font-bold text-foreground">{name}</p>
+                  <p className="text-xs font-medium text-muted-foreground">{role}</p>
                 </div>
               </div>
-            </div>
+            </article>
           ))}
         </div>
       </div>
@@ -998,70 +703,53 @@ function Testimonials() {
   );
 }
 
-/* ─────────────────────────────────────────────
-   CTA BANNER
-───────────────────────────────────────────── */
-
 function CTABanner() {
   const { ref, visible } = useIntersectionObserver(0.2);
 
   return (
-    <section ref={ref} className="py-20 bg-background">
-      <div className="mx-auto max-w-5xl px-4 sm:px-6">
-        <div
-          className={`relative rounded-3xl overflow-hidden transition-all duration-700 ${
-            visible ? "opacity-100 scale-100" : "opacity-0 scale-95"
-          }`}
-        >
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/90 via-primary/80 to-secondary/85" />
-          <div
-            className="absolute inset-0 opacity-[0.06]"
-            style={{
-              backgroundImage: `radial-gradient(circle at 1px 1px, white 1px, transparent 0)`,
-              backgroundSize: "24px 24px",
-            }}
-          />
-          <div className="absolute -top-20 -left-20 w-80 h-80 rounded-full bg-white/10 blur-3xl pointer-events-none" />
-          <div className="absolute -bottom-20 -right-20 w-64 h-64 rounded-full bg-secondary/30 blur-3xl pointer-events-none" />
+    <section ref={ref} className="bg-background py-20 px-4 sm:px-6 lg:px-8 pb-32">
+      <div className={`relative mx-auto max-w-6xl overflow-hidden rounded-[3rem] border border-border bg-foreground dark:bg-slate-900 shadow-2xl shadow-slate-950/20 transition-all duration-1000 ${visible ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-10"}`}>
+        
+        {/* Abstract Glows */}
+        <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none rounded-[3rem]">
+          <div className="absolute -left-32 -top-32 h-96 w-96 rounded-full bg-primary/30 blur-[100px]" />
+          <div className="absolute -right-32 -bottom-32 h-96 w-96 rounded-full bg-secondary/30 blur-[100px]" />
+        </div>
 
-          <div className="relative flex flex-col lg:flex-row items-center gap-8 p-10 sm:p-14">
-            <div className="flex-1 text-center lg:text-left space-y-5">
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-4 py-1.5 text-xs font-semibold text-white/90">
-                <Zap className="w-3.5 h-3.5" />
-                No credit card required
-              </div>
-              <h2 className="font-heading text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-                Your exam date is closer than you think.
-              </h2>
-              <p className="text-white/70 text-sm sm:text-base max-w-md">
-                Start your free account now and find out exactly how ready you are — before it matters.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">
-                <Link
-                  href="/register"
-                  className="group inline-flex items-center justify-center gap-2 rounded-xl px-7 py-3.5 text-sm font-bold bg-white text-primary hover:bg-white/95 shadow-xl shadow-black/20 transition-all duration-200 active:scale-[0.97]"
-                >
-                  Start for free — today
-                  <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1" />
-                </Link>
-                <Link
-                  href="#pricing"
-                  className="inline-flex items-center justify-center gap-2 rounded-xl px-7 py-3.5 text-sm font-semibold border border-white/25 text-white hover:bg-white/10 transition-all duration-200"
-                >
-                  See pricing
-                </Link>
-              </div>
+        <div className="relative grid gap-12 p-10 sm:p-16 lg:grid-cols-2 lg:items-center">
+          <div className="space-y-8 text-center lg:text-left">
+            <h2 className="text-4xl font-black tracking-tight text-background dark:text-white sm:text-5xl leading-tight">
+              Your exam date is closer than you think.
+            </h2>
+            <p className="max-w-xl text-lg leading-relaxed text-background/80 dark:text-slate-300 mx-auto lg:mx-0">
+              Start your free account now and find out exactly how ready you are — before it actually matters.
+            </p>
+            <div className="flex flex-col gap-4 sm:flex-row sm:justify-center lg:justify-start">
+              <Link href="/register" className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-8 py-4 text-base font-bold text-primary-foreground shadow-xl shadow-primary/20 transition-all hover:bg-primary/90 hover:-translate-y-1 active:scale-95">
+                Start for free today
+                <ArrowRight className="h-5 w-5" />
+              </Link>
+              <Link href="#pricing" className="inline-flex items-center justify-center gap-2 rounded-full border-2 border-background/20 dark:border-white/20 bg-transparent px-8 py-4 text-base font-bold text-background dark:text-white transition-all hover:bg-background/10">
+                See pricing
+              </Link>
             </div>
-
-            <div className="flex-shrink-0 w-44 sm:w-52 lg:w-56 animate-float-slow">
-              <Image
-                src={THINKING_MASCOT_URL}
-                alt="Kukot thinking"
-                width={280}
-                height={280}
-                className="w-full h-auto drop-shadow-[0_20px_40px_rgba(0,0,0,0.35)]"
-                unoptimized
-              />
+            <p className="text-sm font-medium text-background/60 dark:text-slate-400 flex items-center justify-center lg:justify-start gap-2">
+              <Zap className="h-4 w-4" /> No credit card required.
+            </p>
+          </div>
+          
+          <div className="flex justify-center lg:justify-end">
+            <div className="relative w-full max-w-[340px] rounded-[2.5rem] border border-white/10 bg-white/5 p-6 backdrop-blur-xl shadow-2xl animate-float-slow">
+              <div className="relative overflow-hidden rounded-[2rem] bg-slate-950 p-6 border border-white/10">
+                <div className="absolute inset-0 bg-gradient-to-b from-primary/20 to-transparent opacity-50" />
+                <div className="relative z-10 w-full h-48 sm:h-56">
+                   <Image src={THINKING_MASCOT_URL} alt="Kukot thinking" fill className="object-contain" unoptimized />
+                </div>
+                <div className="relative z-10 mt-6 rounded-2xl bg-white/10 p-5 backdrop-blur-md border border-white/5 text-left">
+                  <p className="font-bold text-white text-lg">Ready to pass?</p>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-300">Jump into mock exams, practice sessions, and analytics in one polished platform.</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1070,41 +758,34 @@ function CTABanner() {
   );
 }
 
-/* ─────────────────────────────────────────────
-   FOOTER
-───────────────────────────────────────────── */
-
 function Footer() {
   return (
-    <footer className="border-t border-border bg-background">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6 py-10">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
-          <div className="flex flex-col items-center sm:items-start gap-1">
+    <footer className="border-t border-border bg-background py-12">
+      <div className="mx-auto flex max-w-7xl flex-col gap-8 px-4 sm:px-6 lg:px-8">
+        <div className="flex flex-col gap-8 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-3 text-center sm:text-left">
             <Logo />
-            <p className="text-xs text-muted-foreground">The smarter way to pass the CSE.</p>
+            <p className="text-sm font-medium text-muted-foreground max-w-xs mx-auto sm:mx-0">The smarter, data-driven way to pass the Civil Service Exam.</p>
           </div>
-
-          <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
+          <div className="flex flex-wrap justify-center sm:justify-end items-center gap-6 text-sm font-medium text-muted-foreground">
             {[
               { label: "Log in", href: "/login" },
               { label: "Register", href: "/register" },
               { label: "Terms of Service", href: "/terms" },
               { label: "Privacy Policy", href: "/privacy" },
-            ].map((l) => (
-              <Link
-                key={l.href}
-                href={l.href}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {l.label}
+            ].map((link) => (
+              <Link key={link.href} href={link.href} className="transition-colors hover:text-foreground">
+                {link.label}
               </Link>
             ))}
-          </nav>
+          </div>
         </div>
-
-        <div className="mt-8 pt-6 border-t border-border text-center">
-          <p className="text-xs text-muted-foreground">
-            © {new Date().getFullYear()} TaraCSE. All rights reserved. Not affiliated with the Civil Service Commission (CSC) of the Philippines.
+        <div className="border-t border-border/50 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p className="text-xs text-muted-foreground text-center sm:text-left">
+            © {new Date().getFullYear()} TaraCSE. All rights reserved.
+          </p>
+          <p className="text-[10px] uppercase tracking-widest text-muted-foreground/60 font-bold text-center sm:text-right">
+            Not affiliated with the Civil Service Commission (CSC)
           </p>
         </div>
       </div>
@@ -1112,57 +793,27 @@ function Footer() {
   );
 }
 
-/* ─────────────────────────────────────────────
-   PAGE ROOT
-───────────────────────────────────────────── */
-
 export default function LandingPage() {
   return (
     <>
       <style>{`
-        /* ── Mascot float animations ── */
         @keyframes float-slow {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-14px); }
+          0%, 100% { transform: translateY(0); } 
+          50% { transform: translateY(-16px); }
         }
-        @keyframes bounce-slow {
-          0%, 100% { transform: translateY(-4%); }
-          50% { transform: translateY(0); }
+        @keyframes float-soft {
+          0%, 100% { transform: translateY(0); } 
+          50% { transform: translateY(-8px); }
         }
-        @keyframes hero-float {
-          0% { transform: translateY(0) scale(1); opacity: 0.6; }
-          50% { transform: translateY(-18px) scale(1.05); opacity: 1; }
-          100% { transform: translateY(0) scale(1); opacity: 0.6; }
-        }
-        @keyframes hero-float-b {
-          0% { transform: translateY(0) rotate(45deg); opacity: 0.5; }
-          50% { transform: translateY(-22px) rotate(55deg); opacity: 0.9; }
-          100% { transform: translateY(0) rotate(45deg); opacity: 0.5; }
-        }
-        @keyframes hero-gradient {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
-        }
-        @keyframes pulse-soft {
-          0%, 100% { transform: scale(1); opacity: 0.7; }
-          50% { transform: scale(1.06); opacity: 1; }
-        }
-
-        .animate-float-slow { animation: float-slow 4s ease-in-out infinite; }
-        .animate-bounce-slow { animation: bounce-slow 3s ease-in-out infinite; }
-        .hero-float { animation: hero-float 6s ease-in-out infinite; }
-        .hero-float-b { animation: hero-float-b 7s ease-in-out infinite; }
-        .animate-hero-gradient { animation: hero-gradient 6s ease infinite; }
-        .animate-pulse-soft { animation: pulse-soft 4s ease-in-out infinite; }
+        .animate-float-slow { animation: float-slow 6s ease-in-out infinite; }
+        .animate-float-soft { animation: float-soft 4s ease-in-out infinite; }
       `}</style>
-      <div className="min-h-screen bg-background text-foreground font-sans antialiased overflow-x-hidden">
+      <div className="min-h-screen bg-background text-foreground font-sans antialiased selection:bg-primary/20 selection:text-primary">
         <Navbar />
         <main>
           <Hero />
           <WhyTaraCSE />
           <Features />
-          <MascotCallout />
           <Pricing />
           <Testimonials />
           <CTABanner />

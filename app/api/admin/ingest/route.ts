@@ -1,3 +1,4 @@
+// app/api/admin/ingest/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAdminStatus } from '@/lib/admin-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -23,6 +24,7 @@ function sanitizeHTML(text: string): string {
 }
 
 interface ParsedQuestion {
+  rowNumber: number; // Added to track skipped row details
   level: string;
   category: string;
   difficulty: string;
@@ -128,6 +130,7 @@ export async function POST(request: NextRequest) {
         errors.push({ row: rowNumber, issues: rowErrors });
       } else {
         validRows.push({
+          rowNumber,
           level: rawLevel,
           category: rawCategory,
           difficulty: rawDifficulty,
@@ -162,18 +165,29 @@ export async function POST(request: NextRequest) {
       existingQuestions.map(q => `${q.category}|${q.question_text}`)
     );
 
-    const newQuestionsToInsert = validRows.filter(
-      row => !existingSet.has(`${row.category}|${row.question_text}`)
-    );
+    const newQuestionsToInsert: Omit<ParsedQuestion, 'rowNumber'>[] = [];
+    const skippedItems: { row: number; question_text: string; category: string }[] = [];
 
-    const skippedCount = validRows.length - newQuestionsToInsert.length;
+    validRows.forEach(row => {
+      if (existingSet.has(`${row.category}|${row.question_text}`)) {
+        skippedItems.push({
+          row: row.rowNumber,
+          question_text: row.question_text,
+          category: row.category
+        });
+      } else {
+        const { rowNumber, ...dbRow } = row; // Strip rowNumber before database insertion
+        newQuestionsToInsert.push(dbRow);
+      }
+    });
 
     if (newQuestionsToInsert.length === 0) {
       return NextResponse.json({ 
         status: 'success', 
         message: `Processed ${validRows.length} rows. All questions were already in the database. 0 new inserts.`,
         inserted: 0,
-        skipped: skippedCount,
+        skipped: skippedItems.length,
+        skippedItems: skippedItems,
         insertedIds: []
       }, { status: 200 });
     }
@@ -192,9 +206,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ 
       status: 'success', 
-      message: `Successfully ingested ${newQuestionsToInsert.length} new questions. Skipped ${skippedCount} duplicates.`,
+      message: `Successfully ingested ${newQuestionsToInsert.length} new questions. Skipped ${skippedItems.length} duplicates.`,
       inserted: newQuestionsToInsert.length,
-      skipped: skippedCount,
+      skipped: skippedItems.length,
+      skippedItems: skippedItems,
       insertedIds: insertedIds
     }, { status: 200 });
 

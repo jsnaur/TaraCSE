@@ -39,3 +39,15 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Claude Code
+CLAUDE.md
+.claude/
+
+# Playwright
+playwright.config.ts
+playwright.config.js
+test-results/
+playwright-report/
+.playwright/
+tests/e2e/
