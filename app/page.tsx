@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import Image from "next/image";
@@ -1207,10 +1207,13 @@ function StickyMobileCTA() {
           : "translate-y-full opacity-0"
       }`}
     >
-      <div className="bg-card/95 backdrop-blur-xl border-t border-border/60 px-4 py-3 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] dark:shadow-[0_-4px_20px_rgba(0,0,0,0.3)]">
+      <div
+        className="bg-card/95 backdrop-blur-xl border-t border-border/60 pt-3 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] dark:shadow-[0_-4px_20px_rgba(0,0,0,0.3)] flex justify-center"
+        style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom, 0px))" }}
+      >
         <Link
           href="/register"
-          className="flex items-center justify-center gap-2 w-full rounded-full bg-primary px-6 py-3 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/20 transition-all active:scale-[0.98]"
+          className="flex items-center justify-center gap-2 max-w-[90vw] mx-auto rounded-full bg-primary px-4 py-3 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/20 transition-all active:scale-[0.98]"
         >
           <Play className="h-4 w-4 fill-current" />
           Start reviewing — it&apos;s free
