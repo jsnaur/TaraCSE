@@ -455,7 +455,7 @@ function ConfettiBurst() {
         x: (Math.random() - 0.5) * 600,
         y: -(Math.random() * 400 + 100),
         rotate: Math.random() * 720 - 360,
-        color: ["#f59e0b", "#3b82f6", "#22c55e", "#ef4444", "#8b5cf6", "#ec4899"][
+        color: ["#F5A800", "#1B3577", "#22c55e", "#ef4444", "#2563EB", "#FFB300"][
           Math.floor(Math.random() * 6)
         ],
         size: Math.random() * 8 + 5,

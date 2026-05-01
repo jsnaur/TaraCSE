@@ -95,7 +95,7 @@ const STATUS_CONFIG: Record<
     label: "Premium",
     icon: Crown,
     className:
-      "bg-violet-50 text-violet-700 border border-violet-200 dark:bg-violet-950 dark:text-violet-400 dark:border-violet-800",
+      "bg-accent/10 text-accent-foreground border border-accent/30 dark:bg-accent/10 dark:text-accent dark:border-accent/30",
   },
 };
 
@@ -338,7 +338,7 @@ export default function VerificationsClient({ initialUsers }: { initialUsers: Us
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <StatCard label="Total Users" value={stats.total} icon={Users} colorClass="bg-primary/10 text-primary" delay={0.05} />
             <StatCard label="Pending" value={stats.pending} icon={Clock} colorClass="bg-amber-100 text-amber-600 dark:bg-amber-900 dark:text-amber-400" delay={0.1} />
-            <StatCard label="Premium" value={stats.premium} icon={Crown} colorClass="bg-violet-100 text-violet-600 dark:bg-violet-900 dark:text-violet-400" delay={0.15} />
+            <StatCard label="Premium" value={stats.premium} icon={Crown} colorClass="bg-accent/10 text-accent-foreground dark:bg-accent/15 dark:text-accent" delay={0.15} />
             <StatCard label="Free Tier" value={stats.free} icon={UserCheck} colorClass="bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400" delay={0.2} />
           </div>
 
@@ -598,7 +598,7 @@ export default function VerificationsClient({ initialUsers }: { initialUsers: Us
                   <span className="font-semibold text-foreground">
                     {pendingAction.userName}
                   </span>{" "}
-                  to <span className="font-semibold text-violet-600 dark:text-violet-400">Premium</span>? This will grant them full access to all TaraCSE review materials.
+                  to <span className="font-semibold text-accent dark:text-accent">Premium</span>? This will grant them full access to all TaraCSE review materials.
                 </>
               ) : (
                 <>

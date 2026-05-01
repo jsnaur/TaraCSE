@@ -418,7 +418,7 @@ export default function SetupClient({ userState }: { userState: UserState }) {
           <div
             className="w-16 h-16 rounded-3xl flex items-center justify-center"
             style={{
-              background: "linear-gradient(135deg, var(--primary) 0%, #312E81 100%)",
+              background: "linear-gradient(135deg, var(--primary) 0%, #0F1D35 100%)",
               boxShadow: "0 0 40px var(--spark-ai-border)",
             }}
           >
@@ -646,7 +646,7 @@ export default function SetupClient({ userState }: { userState: UserState }) {
             style={
               canStart
                 ? {
-                    background: "linear-gradient(135deg, var(--primary) 0%, #312E81 100%)",
+                    background: "linear-gradient(135deg, var(--primary) 0%, #0F1D35 100%)",
                     color: "var(--primary-foreground)",
                     boxShadow: "0 4px 24px var(--spark-ai-border)",
                     cursor: "pointer",

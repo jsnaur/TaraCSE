@@ -17,7 +17,7 @@ const categoryPerformance = [
   { name: "Verbal Ability", score: 85, color: "bg-emerald-500", text: "text-emerald-500" },
   { name: "Numerical Ability", score: 42, color: "bg-rose-500", text: "text-rose-500" },
   { name: "Analytical Ability", score: 76, color: "bg-blue-500", text: "text-blue-500" },
-  { name: "General Information", score: 92, color: "bg-purple-500", text: "text-purple-500" },
+  { name: "General Information", score: 92, color: "bg-accent", text: "text-accent" },
 ];
 
 const recentExams = [

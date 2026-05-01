@@ -24,7 +24,7 @@ export function Sidebar({ className = "" }: { className?: string }) {
       href: "/dashboard",
       label: "Dashboard",
       icon: LayoutDashboard,
-      iconBg: "bg-[#2A2055] text-[#A89FE8]",
+      iconBg: "bg-[#162040] text-[#93C5FD]",
     },
     {
       href: "/dashboard/practice",

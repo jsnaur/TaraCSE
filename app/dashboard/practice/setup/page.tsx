@@ -633,7 +633,7 @@ export default function PracticeSetupPage() {
           <AlertDialogFooter className="sm:justify-center sm:space-x-3 mt-4 flex-col gap-2">
             <AlertDialogAction
               onClick={() => router.push("/pricing")}
-              className="rounded-2xl bg-gradient-to-r from-primary to-indigo-600 hover:from-primary/90 hover:to-indigo-600/90 w-full font-bold py-6 text-base"
+              className="rounded-2xl bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 w-full font-bold py-6 text-base"
             >
               <Sparkles size={18} className="mr-2" /> Upgrade for ₱99
             </AlertDialogAction>

@@ -61,37 +61,37 @@
 }
 
 :root {
-  /* LIGHT MODE VARIABLES */
-  --background: #F0F4FF;
-  --foreground: #1E1B4B;
+  /* LIGHT MODE VARIABLES — Corporate Authority (Navy + Gold) */
+  --background: #F4F7FC;
+  --foreground: #0F1D3E;
   --card: #FFFFFF;
-  --card-foreground: #1E1B4B;
+  --card-foreground: #0F1D3E;
   --popover: #FFFFFF;
-  --popover-foreground: #1E1B4B;
-  --primary: #4338CA;
+  --popover-foreground: #0F1D3E;
+  --primary: #1B3577;
   --primary-foreground: #FFFFFF;
-  --secondary: #0891B2;
+  --secondary: #2563EB;
   --secondary-foreground: #FFFFFF;
-  --muted: #C7D2FE;
-  --muted-foreground: #94A3B8;
-  --accent: #F59E0B;
-  --accent-foreground: #FFFFFF;
+  --muted: #D8E3F5;
+  --muted-foreground: #6B7A99;
+  --accent: #F5A800;
+  --accent-foreground: #0F1D3E;
   --destructive: #FEF2F2;
   --destructive-foreground: #DC2626;
-  --border: #C7D2FE;
-  --input: #C7D2FE;
-  --ring: #4338CA;
-  
-  --radius: 0.75rem; /* Gamified, rounded feel */
-  
+  --border: #C5D2EA;
+  --input: #C5D2EA;
+  --ring: #1B3577;
+
+  --radius: 0.75rem;
+
   --sidebar: #FFFFFF;
-  --sidebar-foreground: #1E1B4B;
-  --sidebar-primary: #4338CA;
+  --sidebar-foreground: #0F1D3E;
+  --sidebar-primary: #1B3577;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #E0E7FF;
-  --sidebar-accent-foreground: #4338CA;
-  --sidebar-border: #C7D2FE;
-  --sidebar-ring: #4338CA;
+  --sidebar-accent: #EEF3FF;
+  --sidebar-accent-foreground: #1B3577;
+  --sidebar-border: #C5D2EA;
+  --sidebar-ring: #1B3577;
 
   /* Spark Gamification States - Light */
   --spark-correct-bg: #ECFDF5;
@@ -100,52 +100,52 @@
   --spark-wrong-bg: #FEF2F2;
   --spark-wrong-text: #DC2626;
   --spark-wrong-border: #FECACA;
-  --spark-ai-bg: #EDE9FA;
-  --spark-ai-text: #6C63E0;
-  --spark-ai-border: #C4B5FD;
+  --spark-ai-bg: #EEF3FF;
+  --spark-ai-text: #1B3577;
+  --spark-ai-border: #C5D2EA;
 }
 
 .dark {
-  /* DARK MODE VARIABLES (DEFAULT) */
-  --background: #0F0E1A;
-  --foreground: #E8E6F0;
-  --card: #1A1630;
-  --card-foreground: #E8E6F0;
-  --popover: #1A1630;
-  --popover-foreground: #E8E6F0;
-  --primary: #6C63E0;
+  /* DARK MODE VARIABLES — Corporate Authority (Navy + Gold) */
+  --background: #080F1E;
+  --foreground: #E5EBF8;
+  --card: #0F1D35;
+  --card-foreground: #E5EBF8;
+  --popover: #0F1D35;
+  --popover-foreground: #E5EBF8;
+  --primary: #4A7BC8;
   --primary-foreground: #FFFFFF;
-  --secondary: #0891B2;
-  --secondary-foreground: #FFFFFF;
-  --muted: #2A2640;
-  --muted-foreground: #5B5480;
-  --accent: #F59E0B;
-  --accent-foreground: #FFFFFF;
-  --destructive: #2B0E0E;
-  --destructive-foreground: #E07070;
-  --border: #2A2640;
-  --input: #2A2640;
-  --ring: #6C63E0;
+  --secondary: #38BDF8;
+  --secondary-foreground: #020617;
+  --muted: #162040;
+  --muted-foreground: #6B80AA;
+  --accent: #FFB300;
+  --accent-foreground: #0F1D3E;
+  --destructive: #2B0A0A;
+  --destructive-foreground: #FCA5A5;
+  --border: #1E3058;
+  --input: #1E3058;
+  --ring: #4A7BC8;
 
-  --sidebar: #13112B;
-  --sidebar-foreground: #E8E6F0;
-  --sidebar-primary: #6C63E0;
+  --sidebar: #0A1628;
+  --sidebar-foreground: #E5EBF8;
+  --sidebar-primary: #4A7BC8;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #2A2055;
-  --sidebar-accent-foreground: #E8E6F0;
-  --sidebar-border: #2A2640;
-  --sidebar-ring: #6C63E0;
+  --sidebar-accent: #162040;
+  --sidebar-accent-foreground: #E5EBF8;
+  --sidebar-border: #1E3058;
+  --sidebar-ring: #4A7BC8;
 
   /* Spark Gamification States - Dark */
-  --spark-correct-bg: #0D2B1D;
-  --spark-correct-text: #74C69D;
-  --spark-correct-border: #2D6A4F;
-  --spark-wrong-bg: #2B0E0E;
-  --spark-wrong-text: #E07070;
-  --spark-wrong-border: #6B2020;
-  --spark-ai-bg: #1B1535;
-  --spark-ai-text: #7C6FE8;
-  --spark-ai-border: #3A2D70;
+  --spark-correct-bg: #064E3B;
+  --spark-correct-text: #6EE7B7;
+  --spark-correct-border: #065F46;
+  --spark-wrong-bg: #450A0A;
+  --spark-wrong-text: #FCA5A5;
+  --spark-wrong-border: #7F1D1D;
+  --spark-ai-bg: #0F2040;
+  --spark-ai-text: #93C5FD;
+  --spark-ai-border: #1E3A70;
 }
 
 @layer base {

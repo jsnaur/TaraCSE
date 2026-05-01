@@ -195,7 +195,7 @@ function useIntersectionObserver(threshold = 0.15) {
 function Logo() {
   return (
     <Link href="/" className="inline-flex items-center gap-3 group">
-      <div className="relative flex h-12 w-12 items-center justify-center rounded-[1.25rem] bg-gradient-to-br from-primary via-violet-500 to-secondary shadow-lg shadow-primary/30 transition-all duration-300 group-hover:scale-105 group-hover:-translate-y-1">
+      <div className="relative flex h-12 w-12 items-center justify-center rounded-[1.25rem] bg-gradient-to-br from-primary via-primary to-secondary shadow-lg shadow-primary/30 transition-all duration-300 group-hover:scale-105 group-hover:-translate-y-1">
         <Image src={LOGO_URL} alt="TaraCSE Logo" fill className="object-cover rounded-[1.25rem]" unoptimized />
       </div>
       <div className="space-y-0.5 text-left">
@@ -298,7 +298,7 @@ function Hero() {
     <section className="relative overflow-hidden bg-background pt-32 pb-20 sm:pt-40 sm:pb-24 lg:px-8">
       {/* Background Gradients */}
       <div className="absolute top-0 inset-x-0 h-[800px] w-full bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/10 via-background to-background pointer-events-none" />
-      <div className="absolute right-0 top-32 h-[400px] w-[400px] rounded-full bg-violet-500/10 blur-[100px] pointer-events-none" />
+      <div className="absolute right-0 top-32 h-[400px] w-[400px] rounded-full bg-primary/10 blur-[100px] pointer-events-none" />
       
       <div className="relative mx-auto grid max-w-7xl gap-16 px-4 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
         
@@ -312,7 +312,7 @@ function Hero() {
           <div className={`space-y-6 transition-all duration-700 delay-100 ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
             <h1 className="text-5xl font-black tracking-tight text-foreground sm:text-6xl lg:text-7xl leading-[1.1]">
               Pass the CSE with review that is{" "}
-              <span className="block text-transparent bg-clip-text bg-gradient-to-r from-primary via-violet-500 to-secondary pb-2">
+              <span className="block text-transparent bg-clip-text bg-gradient-to-r from-primary via-secondary to-accent pb-2">
                 smart, fast, and modern.
               </span>
             </h1>
@@ -357,7 +357,7 @@ function Hero() {
             <div className="absolute inset-0 bg-slate-200 dark:bg-slate-800" />
 
             {/* The Spinning Light Edge (Explicit Hex to guarantee visibility) */}
-            <div className="absolute left-1/2 top-1/2 h-[200%] w-[200%] -translate-x-1/2 -translate-y-1/2 animate-[spin_3s_linear_infinite] bg-[conic-gradient(from_0deg,transparent_0_75%,#8b5cf6_100%)] opacity-90 blur-[1px]" />
+            <div className="absolute left-1/2 top-1/2 h-[200%] w-[200%] -translate-x-1/2 -translate-y-1/2 animate-[spin_3s_linear_infinite] bg-[conic-gradient(from_0deg,transparent_0_75%,#F5A800_100%)] opacity-90 blur-[1px]" />
 
             {/* Inner Main Card Area */}
             <div className="relative z-10 w-full h-full rounded-[2.35rem] bg-gradient-to-b from-slate-50 to-white dark:from-slate-900 dark:to-slate-950 p-6 sm:p-8">

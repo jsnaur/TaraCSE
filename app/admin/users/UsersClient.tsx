@@ -37,7 +37,7 @@ import {
 import { AdminUser, togglePremiumStatus, resetAiUses } from "./actions";
 
 const AVATAR_COLORS = [
-  "bg-blue-500", "bg-emerald-500", "bg-violet-500",
+  "bg-primary", "bg-emerald-500", "bg-secondary",
   "bg-amber-500", "bg-rose-500", "bg-cyan-500"
 ];
 
@@ -165,7 +165,7 @@ export default function UsersClient({ initialUsers }: { initialUsers: AdminUser[
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <StatCard label="Total Users" value={stats.total} icon={Users} colorClass="bg-blue-100 text-blue-600 dark:bg-blue-900/50" delay={0.05} />
-        <StatCard label="Premium Tier" value={stats.premium} icon={Crown} colorClass="bg-violet-100 text-violet-600 dark:bg-violet-900/50" delay={0.1} />
+        <StatCard label="Premium Tier" value={stats.premium} icon={Crown} colorClass="bg-accent/10 text-accent-foreground dark:bg-accent/15" delay={0.1} />
         <StatCard label="Free Tier" value={stats.free} icon={Users} colorClass="bg-slate-100 text-slate-600 dark:bg-slate-800" delay={0.15} />
         <StatCard label="Admins" value={stats.admins} icon={ShieldAlert} colorClass="bg-rose-100 text-rose-600 dark:bg-rose-900/50" delay={0.2} />
       </div>
@@ -183,7 +183,7 @@ export default function UsersClient({ initialUsers }: { initialUsers: AdminUser[
         <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)}>
           <TabsList className="h-9 rounded-xl gap-1 bg-muted/60 p-1">
             <TabsTrigger value="all" className="rounded-lg px-4 text-xs font-semibold data-[state=active]:bg-card">All</TabsTrigger>
-            <TabsTrigger value="premium" className="rounded-lg px-4 text-xs font-semibold data-[state=active]:bg-card text-violet-600 dark:text-violet-400">Premium</TabsTrigger>
+            <TabsTrigger value="premium" className="rounded-lg px-4 text-xs font-semibold data-[state=active]:bg-card text-accent dark:text-accent">Premium</TabsTrigger>
             <TabsTrigger value="free" className="rounded-lg px-4 text-xs font-semibold data-[state=active]:bg-card">Free</TabsTrigger>
             <TabsTrigger value="admin" className="rounded-lg px-4 text-xs font-semibold data-[state=active]:bg-card text-rose-600 dark:text-rose-400">Admins</TabsTrigger>
           </TabsList>
@@ -251,7 +251,7 @@ export default function UsersClient({ initialUsers }: { initialUsers: AdminUser[
                         </TableCell>
                         <TableCell className="py-4">
                           {user.is_premium ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-violet-100 text-violet-700 text-[11px] font-bold dark:bg-violet-900/40 dark:text-violet-400">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-accent/10 text-accent-foreground text-[11px] font-bold dark:bg-accent/15 dark:text-accent">
                               <Crown className="w-3 h-3" /> Premium
                             </span>
                           ) : (
@@ -273,7 +273,7 @@ export default function UsersClient({ initialUsers }: { initialUsers: AdminUser[
                               </span>
                             </div>
                           ) : (
-                            <span className="text-[11px] font-bold text-violet-500 flex items-center gap-1">
+                            <span className="text-[11px] font-bold text-accent flex items-center gap-1">
                               <Bot className="w-3.5 h-3.5" /> Unlimited
                             </span>
                           )}
@@ -293,7 +293,7 @@ export default function UsersClient({ initialUsers }: { initialUsers: AdminUser[
                             <Button
                               variant="ghost"
                               size="icon"
-                              className={`h-8 w-8 rounded-lg ${user.is_premium ? "hover:bg-rose-100 hover:text-rose-600 dark:hover:bg-rose-900/30" : "hover:bg-violet-100 hover:text-violet-600 dark:hover:bg-violet-900/30"}`}
+                              className={`h-8 w-8 rounded-lg ${user.is_premium ? "hover:bg-rose-100 hover:text-rose-600 dark:hover:bg-rose-900/30" : "hover:bg-accent/10 hover:text-accent dark:hover:bg-accent/15"}`}
                               title={user.is_premium ? "Revoke Premium" : "Grant Premium"}
                               onClick={() => triggerAction(user, "toggle_premium")}
                               disabled={user.is_admin} 

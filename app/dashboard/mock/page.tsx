@@ -307,7 +307,7 @@ function PremiumCTA() {
     <div
       className="sm:col-span-3 relative overflow-hidden rounded-3xl p-6 flex flex-col justify-between gap-6 border"
       style={{
-        background: "linear-gradient(145deg, var(--primary) 0%, #312E81 60%, #1E1B4B 100%)",
+        background: "linear-gradient(145deg, var(--primary) 0%, #0F1D35 60%, #080F1E 100%)",
         borderColor: "transparent",
         minHeight: "200px",
       }}

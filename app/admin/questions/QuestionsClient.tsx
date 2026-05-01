@@ -400,7 +400,7 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <StatCard label="Total Items" value={stats.total} icon={FileQuestion} colorClass="bg-blue-100 text-blue-600 dark:bg-blue-900/40" delay={0.05} />
         <StatCard label="Active Items" value={stats.active} icon={Sparkles} colorClass="bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40" delay={0.1} />
-        <StatCard label="Professional" value={stats.prof} icon={Database} colorClass="bg-violet-100 text-violet-600 dark:bg-violet-900/40" delay={0.15} />
+        <StatCard label="Professional" value={stats.prof} icon={Database} colorClass="bg-primary/10 text-primary dark:bg-primary/15" delay={0.15} />
         <StatCard label="Subprofessional" value={stats.subprof} icon={Database} colorClass="bg-amber-100 text-amber-600 dark:bg-amber-900/40" delay={0.2} />
       </div>
 
