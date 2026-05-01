@@ -268,12 +268,12 @@ function useInView(threshold = 0.15) {
 
 function Logo({ compact = false }: { compact?: boolean }) {
   return (
-    <Link href="/" className="inline-flex items-center gap-2.5 group">
-      <div className="relative flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-secondary shadow-lg shadow-primary/20 transition-all duration-300 group-hover:scale-105 group-hover:shadow-primary/30">
+    <Link href="/" className="inline-flex items-center gap-2 sm:gap-2.5 group shrink-0">
+      <div className="relative flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-secondary shadow-lg shadow-primary/20 transition-all duration-300 group-hover:scale-105 group-hover:shadow-primary/30">
         <Image src={LOGO_URL} alt="TaraCSE Logo" fill className="object-cover rounded-2xl" unoptimized />
       </div>
       {!compact && (
-        <div className="text-left">
+        <div className="text-left shrink-0">
           <p className="text-sm sm:text-base font-bold tracking-tight text-foreground transition-colors group-hover:text-primary">
             Tara<span className="text-primary">CSE</span>
           </p>
@@ -318,10 +318,10 @@ function Navbar() {
         className={`fixed top-0 inset-x-0 z-50 transition-all duration-500 ${
           scrolled
             ? "bg-background/80 backdrop-blur-2xl shadow-sm border-b border-border/40 py-2.5"
-            : "bg-transparent py-4 sm:py-5"
+            : "bg-transparent py-3 sm:py-5"
         }`}
       >
-        <nav className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+        <nav className="mx-auto flex max-w-7xl items-center justify-between gap-2 sm:gap-4 px-4 sm:px-6 lg:px-8">
           <Logo />
 
           {/* Desktop nav links */}
@@ -337,28 +337,29 @@ function Navbar() {
             ))}
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <Link
               href="/login"
-              className="hidden sm:inline-flex items-center justify-center text-sm font-semibold text-foreground transition-colors hover:text-primary"
+              className="hidden sm:inline-flex items-center justify-center text-sm font-semibold text-foreground transition-colors hover:text-primary shrink-0"
             >
               Log in
             </Link>
             <Link
               href="/register"
-              className="group inline-flex items-center justify-center gap-1.5 rounded-full bg-primary px-4 py-2 sm:px-5 sm:py-2.5 text-xs sm:text-sm font-bold text-primary-foreground transition-all hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/25 active:scale-95"
+              className="group inline-flex items-center justify-center gap-1 sm:gap-1.5 rounded-full bg-primary px-3 py-1.5 sm:px-5 sm:py-2.5 text-[11px] sm:text-sm font-bold text-primary-foreground transition-all hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/25 active:scale-95 shrink-0"
             >
-              Sign up free
-              <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+              <span className="sm:hidden">Sign Up</span>
+              <span className="hidden sm:inline">Sign up free</span>
+              <ChevronRight className="h-3 w-3 sm:h-3.5 sm:w-3.5 transition-transform group-hover:translate-x-0.5" />
             </Link>
 
             {/* Mobile hamburger */}
             <button
               onClick={() => setMobileOpen(true)}
-              className="inline-flex md:hidden items-center justify-center h-9 w-9 rounded-xl bg-muted/60 text-foreground transition-colors hover:bg-muted"
+              className="inline-flex md:hidden items-center justify-center h-8 w-8 sm:h-9 sm:w-9 shrink-0 rounded-xl bg-muted/60 text-foreground transition-colors hover:bg-muted"
               aria-label="Open menu"
             >
-              <Menu className="h-5 w-5" />
+              <Menu className="h-4 w-4 sm:h-5 sm:w-5" />
             </button>
           </div>
         </nav>
@@ -1184,7 +1185,7 @@ function StickyMobileCTA() {
   useEffect(() => {
     const onScroll = () => {
       const y = window.scrollY;
-      const heroThreshold = 500;
+      const heroThreshold = 300;
 
       // Show after scrolling past hero
       setVisible(y > heroThreshold);
@@ -1201,24 +1202,19 @@ function StickyMobileCTA() {
 
   return (
     <div
-      className={`fixed bottom-0 inset-x-0 z-40 sm:hidden transition-all duration-300 ${
+      className={`fixed bottom-4 inset-x-0 z-40 flex justify-center px-4 sm:hidden transition-all duration-300 ${
         visible && !hidden
-          ? "translate-y-0 opacity-100"
-          : "translate-y-full opacity-0"
+          ? "translate-y-0 opacity-100 pointer-events-auto"
+          : "translate-y-[150%] opacity-0 pointer-events-none"
       }`}
     >
-      <div
-        className="bg-card/95 backdrop-blur-xl border-t border-border/60 pt-3 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] dark:shadow-[0_-4px_20px_rgba(0,0,0,0.3)] flex justify-center"
-        style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom, 0px))" }}
+      <Link
+        href="/register"
+        className="flex items-center justify-center gap-2 w-full max-w-[320px] rounded-full bg-primary px-6 py-3.5 text-sm font-bold text-primary-foreground shadow-2xl shadow-primary/30 border border-primary-foreground/10 transition-all active:scale-[0.98]"
       >
-        <Link
-          href="/register"
-          className="flex items-center justify-center gap-2 max-w-[90vw] mx-auto rounded-full bg-primary px-4 py-3 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/20 transition-all active:scale-[0.98]"
-        >
-          <Play className="h-4 w-4 fill-current" />
-          Start reviewing — it&apos;s free
-        </Link>
-      </div>
+        <Play className="h-4 w-4 fill-current" />
+        Start reviewing — it&apos;s free
+      </Link>
     </div>
   );
 }
@@ -1296,7 +1292,7 @@ export default function LandingPage() {
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
-      <div className="min-h-screen bg-background text-foreground font-sans antialiased selection:bg-primary/20 selection:text-primary">
+      <div className="min-h-screen overflow-x-hidden bg-background text-foreground font-sans antialiased selection:bg-primary/20 selection:text-primary">
         <Navbar />
         <main>
           <Hero />
