@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -31,11 +31,13 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { 
-  getUserMonetizationStatus, 
-  decrementKotAiUsage, 
-  getPracticeQuestions, 
-  checkPracticeAnswer 
+import {
+  getUserMonetizationStatus,
+  decrementKotAiUsage,
+  getPracticeQuestions,
+  checkPracticeAnswer,
+  saveAnswer,
+  completeSession,
 } from "../actions";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -88,6 +90,14 @@ export default function PracticePage() {
   const [finished, setFinished] = useState(false);
   const [loadingAi, setLoadingAi] = useState(false);
   const [flagged, setFlagged] = useState<Set<number>>(new Set());
+  const [examSessionId, setExamSessionId] = useState<string | null>(null);
+  const [isCompleting, setIsCompleting] = useState(false);
+  const sessionStartTime = useRef(Date.now());
+  const questionStartTime = useRef(Date.now());
+
+  useEffect(() => {
+    questionStartTime.current = Date.now();
+  }, [currentIndex]);
 
   // ── Initial Fetch (REPLACES MOCK DATA) ───────────────────────────────────
   useEffect(() => {
@@ -108,6 +118,9 @@ export default function PracticePage() {
         setErrorMsg(sessionData.error || "Failed to load questions.");
       } else {
         setQuestions(sessionData.questions);
+        setExamSessionId(sessionData.examSessionId ?? null);
+        sessionStartTime.current = Date.now();
+        questionStartTime.current = Date.now();
         setStates(
           sessionData.questions.map(() => ({
             selectedId: null,
@@ -180,15 +193,26 @@ export default function PracticePage() {
 
     setStates((prev) => {
       const next = [...prev];
-      next[currentIndex] = { 
-        ...next[currentIndex], 
+      next[currentIndex] = {
+        ...next[currentIndex],
         selectedId: id,
         correctId: answerData.correctId || id, // Fallback safety
         explanation: answerData.explanation || "No explanation available.",
-        isChecking: false 
+        isChecking: false
       };
       return next;
     });
+
+    // Persist the answer (fire-and-forget) — server re-derives correctness
+    if (examSessionId) {
+      const elapsed = Math.max(
+        0,
+        Math.round((Date.now() - questionStartTime.current) / 1000),
+      );
+      saveAnswer(examSessionId, question.id, id, elapsed).catch((err) => {
+        console.error("saveAnswer failed", err);
+      });
+    }
   }
 
   // ── Flag toggle ──────────────────────────────────────────────────────────
@@ -202,9 +226,24 @@ export default function PracticePage() {
   }
 
   // ── Advance or finish ────────────────────────────────────────────────────
-  function advanceOrFinish() {
+  async function advanceOrFinish() {
     if (currentIndex + 1 >= total) {
-      setFinished(true);
+      if (isCompleting) return;
+      setIsCompleting(true);
+      try {
+        if (examSessionId) {
+          const elapsed = Math.max(
+            0,
+            Math.round((Date.now() - sessionStartTime.current) / 1000),
+          );
+          await completeSession(examSessionId, total, elapsed);
+        }
+      } catch (err) {
+        console.error("completeSession failed", err);
+      } finally {
+        setFinished(true);
+        setIsCompleting(false);
+      }
     } else {
       setCurrentIndex((i) => i + 1);
     }
@@ -589,11 +628,26 @@ export default function PracticePage() {
                         size="lg"
                         className="w-full h-14 rounded-2xl font-heading font-bold text-lg shadow-md group"
                         onClick={advanceOrFinish}
+                        disabled={isCompleting}
                       >
-                        {currentIndex + 1 === total
-                          ? "Finish Practice"
-                          : "Next Question"}
-                        <ChevronRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                        {currentIndex + 1 === total ? (
+                          isCompleting ? (
+                            <>
+                              <Loader2 className="mr-2 w-5 h-5 animate-spin" />
+                              Finishing…
+                            </>
+                          ) : (
+                            <>
+                              Finish Practice
+                              <ChevronRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                            </>
+                          )
+                        ) : (
+                          <>
+                            Next Question
+                            <ChevronRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                          </>
+                        )}
                       </Button>
                     </motion.div>
                   )}

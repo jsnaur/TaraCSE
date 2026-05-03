@@ -35,6 +35,7 @@ import { createPracticeSession, getUserMonetizationStatus } from "../actions";
 
 type Category = "verbal" | "numerical" | "analytical" | "clerical" | "general";
 type ItemCount = 10 | 20 | 50 | "endless";
+type Difficulty = "Easy" | "Medium" | "Hard" | "Mixed";
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
@@ -43,6 +44,13 @@ const ITEM_COUNTS: { value: ItemCount; label: string; sub: string }[] = [
   { value: 20, label: "20", sub: "Standard Set" },
   { value: 50, label: "50", sub: "Full Drill" },
   { value: "endless", label: "∞", sub: "Endless Mode" },
+];
+
+const DIFFICULTIES: { value: Difficulty; label: string; sub: string }[] = [
+  { value: "Easy", label: "Easy", sub: "Build Confidence" },
+  { value: "Medium", label: "Medium", sub: "Standard Pace" },
+  { value: "Hard", label: "Hard", sub: "Challenge Mode" },
+  { value: "Mixed", label: "Mixed", sub: "All Difficulties" },
 ];
 
 // ─── Step indicator ───────────────────────────────────────────────────────────
@@ -92,6 +100,7 @@ export default function PracticeSetupPage() {
   const [step, setStep] = useState(1);
   const [categories, setCategories] = useState<Category[]>([]);
   const [itemCount, setItemCount] = useState<ItemCount | null>(null);
+  const [difficulty, setDifficulty] = useState<Difficulty>("Mixed");
 
   // Fetch user's exam category & premium status on mount
   useEffect(() => {
@@ -190,14 +199,15 @@ export default function PracticeSetupPage() {
   // derive per-step validity
   const step1Valid = categories.length > 0;
   const step2Valid = itemCount !== null;
-  const allValid = step1Valid && step2Valid;
+  const step3Valid = difficulty !== null;
+  const allValid = step1Valid && step2Valid && step3Valid;
 
   const handleStart = async () => {
     if (!allValid) return;
     setIsStarting(true);
-    
+
     try {
-      const res = await createPracticeSession(categories, String(itemCount));
+      const res = await createPracticeSession(categories, String(itemCount), difficulty);
       
       if (res?.error || !res?.practiceId) {
         console.error("Failed to start session:", res?.error);
@@ -231,6 +241,8 @@ export default function PracticeSetupPage() {
       : itemCount
       ? `${itemCount} items`
       : null;
+
+  const summaryDifficulty = difficulty;
 
   // Prevent flash of UI while checking auth
   if (isLoading) {
@@ -275,10 +287,10 @@ export default function PracticeSetupPage() {
 
           {/* step indicator */}
           <div className="flex items-center gap-1">
-            {[1, 2].map((s) => (
+            {[1, 2, 3].map((s) => (
               <div key={s} className="flex items-center gap-1">
                 <StepDot step={s} current={step} done={s < step} />
-                {s < 2 && (
+                {s < 3 && (
                   <div
                     className="w-6 h-0.5 rounded-full transition-all duration-500"
                     style={{
@@ -298,7 +310,7 @@ export default function PracticeSetupPage() {
             className="text-xs uppercase tracking-widest font-medium mb-1"
             style={{ color: "var(--primary)" }}
           >
-            Step {step} of 2
+            Step {step} of 3
           </p>
           <h1
             className="font-heading text-3xl font-bold leading-tight"
@@ -306,6 +318,7 @@ export default function PracticeSetupPage() {
           >
             {step === 1 && `Pick your categories for the ${examCategory} exam.`}
             {step === 2 && "How many questions?"}
+            {step === 3 && "Choose your difficulty."}
           </h1>
           <p
             className="text-sm mt-1"
@@ -315,6 +328,8 @@ export default function PracticeSetupPage() {
               "Select one or more subject areas to include in this session."}
             {step === 2 &&
               "Pick a session length. Endless mode keeps going until you stop."}
+            {step === 3 &&
+              "Calibrate the challenge. Mixed pulls from all difficulties."}
           </p>
         </header>
 
@@ -492,6 +507,55 @@ export default function PracticeSetupPage() {
           </div>
         )}
 
+        {/* ── Step 3: Difficulty ─────────────────────────────── */}
+        {step === 3 && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {DIFFICULTIES.map((opt) => {
+              const active = difficulty === opt.value;
+
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => setDifficulty(opt.value)}
+                  className="relative rounded-3xl border p-5 flex flex-col items-center justify-center gap-2 aspect-square transition-all duration-200 focus:outline-none hover:scale-[1.03]"
+                  style={{
+                    background: active ? "var(--spark-ai-bg)" : "var(--card)",
+                    borderColor: active ? "var(--primary)" : "var(--border)",
+                    boxShadow: active
+                      ? "0 0 0 2px var(--primary)"
+                      : "none",
+                  }}
+                >
+                  <span
+                    className="font-heading text-2xl font-bold leading-none"
+                    style={{
+                      color: active ? "var(--primary)" : "var(--foreground)",
+                    }}
+                  >
+                    {opt.label}
+                  </span>
+                  <span
+                    className="text-xs font-medium text-center"
+                    style={{
+                      color: active
+                        ? "var(--primary)"
+                        : "var(--muted-foreground)",
+                    }}
+                  >
+                    {opt.sub}
+                  </span>
+                  {active && (
+                    <div
+                      className="w-1.5 h-1.5 rounded-full"
+                      style={{ background: "var(--primary)" }}
+                    />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {/* ── Summary strip ─────────────────────────────────── */}
         <div
           className="rounded-2xl border px-4 py-3 flex items-center gap-3 flex-wrap"
@@ -539,6 +603,17 @@ export default function PracticeSetupPage() {
               </span>
             </>
           )}
+          {step >= 3 && summaryDifficulty && (
+            <>
+              <ChevronRight size={12} style={{ color: "var(--muted-foreground)" }} />
+              <span
+                className="text-xs font-bold"
+                style={{ color: "var(--foreground)" }}
+              >
+                {summaryDifficulty}
+              </span>
+            </>
+          )}
         </div>
 
         {/* ── Navigation buttons ─────────────────────────────── */}
@@ -574,34 +649,39 @@ export default function PracticeSetupPage() {
           )}
 
           {/* Next / Start */}
-          {step < 2 ? (
-            <Button
-              onClick={() => setStep((s) => s + 1)}
-              disabled={!step1Valid}
-              className="rounded-2xl gap-2 font-heading font-bold px-6"
-              style={{
-                background: step1Valid ? "var(--primary)" : "var(--muted)",
-                color: step1Valid
-                  ? "var(--primary-foreground)"
-                  : "var(--muted-foreground)",
-                cursor: step1Valid ? "pointer" : "not-allowed",
-              }}
-            >
-              Continue <ArrowRight size={15} />
-            </Button>
+          {step < 3 ? (
+            (() => {
+              const stepValid = step === 1 ? step1Valid : step2Valid;
+              return (
+                <Button
+                  onClick={() => setStep((s) => s + 1)}
+                  disabled={!stepValid}
+                  className="rounded-2xl gap-2 font-heading font-bold px-6"
+                  style={{
+                    background: stepValid ? "var(--primary)" : "var(--muted)",
+                    color: stepValid
+                      ? "var(--primary-foreground)"
+                      : "var(--muted-foreground)",
+                    cursor: stepValid ? "pointer" : "not-allowed",
+                  }}
+                >
+                  Continue <ArrowRight size={15} />
+                </Button>
+              );
+            })()
           ) : (
             <Button
               onClick={handleStart}
-              disabled={!step2Valid || isStarting}
+              disabled={!allValid || isStarting}
               className="rounded-2xl gap-2 font-heading font-bold px-6 transition-all duration-200 hover:scale-105 hover:shadow-lg"
               style={{
-                background: step2Valid
+                background: allValid
                   ? "linear-gradient(135deg, var(--primary) 0%, #3730A3 100%)"
                   : "var(--muted)",
-                color: step2Valid
+                color: allValid
                   ? "var(--primary-foreground)"
                   : "var(--muted-foreground)",
-                cursor: step2Valid || isStarting ? "pointer" : "not-allowed",
+                cursor: allValid || isStarting ? "pointer" : "not-allowed",
               }}
             >
               {isStarting ? (
