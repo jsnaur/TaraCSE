@@ -19,6 +19,7 @@ import {
   Flame,
   Star,
   ArrowRight,
+  ArrowLeft,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -316,7 +317,17 @@ export default function PracticeHubPage() {
         }}
       />
 
-      <div className="relative max-w-3xl mx-auto px-4 pt-10 pb-24 flex flex-col gap-8">
+      <div className="relative max-w-3xl mx-auto px-4 pt-6 pb-24 flex flex-col gap-6">
+        {/* ── Back to Dashboard ──────────────────────────────── */}
+        <Link
+          href="/dashboard"
+          className="inline-flex items-center gap-1.5 text-sm w-fit transition-opacity hover:opacity-70"
+          style={{ color: "var(--muted-foreground)" }}
+        >
+          <ArrowLeft size={15} />
+          Back to Dashboard
+        </Link>
+
         {/* ── Header ────────────────────────────────────────── */}
         <header className="flex flex-col gap-1">
           <div className="flex items-center gap-2 mb-1">

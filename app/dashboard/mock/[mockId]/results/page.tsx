@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,8 @@ import {
   Zap,
   Award,
   BarChart3,
+  ArrowLeft,
+  LayoutDashboard,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -525,7 +528,16 @@ export default function ResultsPage() {
             "radial-gradient(ellipse 80% 40% at 50% -10%, hsl(var(--primary)/0.12) 0%, transparent 70%), hsl(var(--background))",
         }}
       >
-        <div className="max-w-3xl mx-auto px-4 py-10 space-y-8">
+        <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+
+          {/* ── Back to Dashboard ── */}
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:opacity-70 transition-opacity"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Dashboard
+          </Link>
 
           {/* ── Hero Header ── */}
           <motion.div
@@ -808,9 +820,19 @@ export default function ResultsPage() {
                   <p className="text-sm text-muted-foreground">
                     Review complete. Ready to improve your score?
                   </p>
-                  <Button className="rounded-2xl px-8 font-heading font-bold h-12">
-                    Start Practice Mode →
-                  </Button>
+                  <div className="flex flex-wrap justify-center gap-3">
+                    <Link href="/dashboard/practice">
+                      <Button className="rounded-2xl px-8 font-heading font-bold h-12">
+                        Start Practice Mode →
+                      </Button>
+                    </Link>
+                    <Link href="/dashboard">
+                      <Button variant="outline" className="rounded-2xl px-8 font-heading font-bold h-12 gap-2">
+                        <LayoutDashboard className="w-4 h-4" />
+                        Back to Dashboard
+                      </Button>
+                    </Link>
+                  </div>
                 </motion.div>
               </TabsContent>
             </Tabs>
