@@ -390,6 +390,240 @@ export async function checkPracticeAnswer(questionId: string) {
 /**
  * 2. KOT AI Teaser Strategy: Deduct uses for non-premium users
  */
+export async function getSessionReview(examSessionId: string) {
+  const authContext = await getAuthUser();
+  if (!authContext) return { error: "Not authenticated" };
+
+  const { user } = authContext;
+  const adminAuthClient = createAdminClient();
+
+  const { data: examSession, error: sessionError } = await adminAuthClient
+    .from("exam_sessions")
+    .select("user_id, mode, level, score, total_questions, time_spent_seconds, completed_at")
+    .eq("id", examSessionId)
+    .single();
+
+  if (sessionError || !examSession) return { error: "Session not found" };
+  if (examSession.user_id !== user.id) return { error: "Unauthorized" };
+
+  const { data: responses, error: responsesError } = await adminAuthClient
+    .from("user_responses")
+    .select(`
+      question_id,
+      selected_answer,
+      is_correct,
+      time_taken_seconds,
+      category,
+      questions (
+        id,
+        question_text,
+        options,
+        explanation,
+        category
+      )
+    `)
+    .eq("session_id", examSessionId)
+    .order("id");
+
+  if (responsesError) return { error: responsesError.message };
+
+  const reviewItems = ((responses ?? []) as any[])
+    .map((r, idx) => {
+      const q = r.questions as any;
+      if (!q) return null;
+      const rawOptions = (q.options ?? []) as any[];
+      const correctIndex = rawOptions.findIndex((o: any) => o.is_correct === true);
+      const correctId = correctIndex >= 0 ? String.fromCharCode(97 + correctIndex) : "a";
+      const safeOptions = rawOptions.map((opt: any, i: number) => ({
+        id: String.fromCharCode(97 + i),
+        text: opt.text as string,
+      }));
+      return {
+        index: idx + 1,
+        questionId: r.question_id as string,
+        questionText: q.question_text as string,
+        options: safeOptions,
+        selectedId: r.selected_answer as string,
+        correctId,
+        explanation: q.explanation as string,
+        isCorrect: r.is_correct as boolean,
+        timeTakenSeconds: (r.time_taken_seconds ?? 0) as number,
+        category: r.category as string,
+      };
+    })
+    .filter(Boolean) as {
+      index: number;
+      questionId: string;
+      questionText: string;
+      options: { id: string; text: string }[];
+      selectedId: string;
+      correctId: string;
+      explanation: string;
+      isCorrect: boolean;
+      timeTakenSeconds: number;
+      category: string;
+    }[];
+
+  return {
+    session: {
+      score: (examSession.score ?? 0) as number,
+      totalQuestions: (examSession.total_questions ?? reviewItems.length) as number,
+      timeSpentSeconds: (examSession.time_spent_seconds ?? 0) as number,
+      completedAt: examSession.completed_at as string | null,
+      mode: examSession.mode as string,
+      level: examSession.level as string,
+    },
+    items: reviewItems,
+  };
+}
+
+export async function getResumeSessionData(practiceId: string) {
+  const authContext = await getAuthUser();
+  if (!authContext) return { error: "Not authenticated" };
+
+  const { user } = authContext;
+  const adminAuthClient = createAdminClient();
+
+  const { data: session, error: sessionError } = await adminAuthClient
+    .from("practice_sessions")
+    .select("user_id, categories, item_count, exam_session_id, difficulty")
+    .eq("id", practiceId)
+    .single();
+
+  if (sessionError || !session) return { error: "Session not found" };
+  if (session.user_id !== user.id) return { error: "Unauthorized" };
+
+  const examSessionId = session.exam_session_id as string | null;
+  if (!examSessionId) return { error: "Session not initialized" };
+
+  const { data: examSession } = await adminAuthClient
+    .from("exam_sessions")
+    .select("completed_at")
+    .eq("id", examSessionId)
+    .single();
+
+  if (examSession?.completed_at) {
+    return { redirectTo: `/dashboard/practice/review/${examSessionId}` };
+  }
+
+  const { data: responses } = await adminAuthClient
+    .from("user_responses")
+    .select(`
+      question_id,
+      selected_answer,
+      is_correct,
+      time_taken_seconds,
+      questions (
+        id,
+        question_text,
+        options,
+        explanation,
+        category
+      )
+    `)
+    .eq("session_id", examSessionId);
+
+  const answeredIds = ((responses ?? []) as any[]).map((r: any) => r.question_id as string);
+
+  const answeredPairs = ((responses ?? []) as any[])
+    .map((r: any) => {
+      const q = r.questions as any;
+      if (!q) return null;
+      const rawOptions = (q.options ?? []) as any[];
+      const correctIndex = rawOptions.findIndex((o: any) => o.is_correct === true);
+      const correctId = correctIndex >= 0 ? String.fromCharCode(97 + correctIndex) : "a";
+      const safeOptions = rawOptions.map((opt: any, i: number) => ({
+        id: String.fromCharCode(97 + i),
+        text: opt.text as string,
+      }));
+      return {
+        question: {
+          id: q.id as string,
+          category: q.category as string,
+          text: q.question_text as string,
+          options: safeOptions,
+        },
+        state: {
+          selectedId: r.selected_answer as string,
+          correctId,
+          explanation: q.explanation as string,
+          aiHint: null as string | null,
+          isChecking: false,
+        },
+      };
+    })
+    .filter(Boolean) as { question: any; state: any }[];
+
+  const { data: profile } = await adminAuthClient
+    .from("profiles")
+    .select("exam_category")
+    .eq("id", user.id)
+    .single();
+
+  const totalCount =
+    session.item_count === "endless"
+      ? 500
+      : Math.max(1, parseInt(session.item_count as string, 10));
+  const remainingCount = Math.max(0, totalCount - answeredIds.length);
+
+  let unansweredQuestions: any[] = [];
+  if (remainingCount > 0 && profile?.exam_category) {
+    let query = adminAuthClient
+      .from("questions")
+      .select("id, question_text, options, category")
+      .eq("level", profile.exam_category)
+      .in("category", session.categories as string[])
+      .eq("is_active", true)
+      .limit(remainingCount + answeredIds.length + 10);
+
+    if (session.difficulty !== "Mixed") {
+      query = query.eq("difficulty", session.difficulty);
+    }
+
+    const { data: fetched } = await query;
+    unansweredQuestions = ((fetched ?? []) as any[])
+      .filter((q: any) => !answeredIds.includes(q.id))
+      .slice(0, remainingCount);
+  }
+
+  const unansweredPairs = unansweredQuestions.map((q: any) => {
+    const rawOptions = (q.options ?? []) as any[];
+    const safeOptions = rawOptions.map((opt: any, i: number) => ({
+      id: String.fromCharCode(97 + i),
+      text: opt.text as string,
+    }));
+    return {
+      question: {
+        id: q.id as string,
+        category: q.category as string,
+        text: q.question_text as string,
+        options: safeOptions,
+      },
+      state: {
+        selectedId: null as string | null,
+        correctId: null as string | null,
+        explanation: null as string | null,
+        aiHint: null as string | null,
+        isChecking: false,
+      },
+    };
+  });
+
+  const allPairs = [...answeredPairs, ...unansweredPairs];
+
+  return {
+    examSessionId,
+    questions: allPairs.map((p) => p.question),
+    initialStates: allPairs.map((p) => p.state),
+    firstUnansweredIndex: answeredPairs.length,
+    config: {
+      categories: session.categories as string[],
+      item_count: session.item_count as string,
+      difficulty: session.difficulty as string,
+    },
+  };
+}
+
 export async function decrementKotAiUsage() {
   const authContext = await getAuthUser();
   if (!authContext) return { error: "Not authenticated" };

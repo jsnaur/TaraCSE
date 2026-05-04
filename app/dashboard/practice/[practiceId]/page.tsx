@@ -352,7 +352,20 @@ export default function PracticePage() {
                 {message}
               </p>
               <div className="pt-4 flex flex-col gap-3">
+                {examSessionId && (
+                  <Button
+                    className="w-full h-12 rounded-2xl font-heading font-semibold text-base"
+                    onClick={() =>
+                      router.push(
+                        `/dashboard/practice/review/${examSessionId}`
+                      )
+                    }
+                  >
+                    Review Answers
+                  </Button>
+                )}
                 <Button
+                  variant="outline"
                   className="w-full h-12 rounded-2xl font-heading font-semibold text-base"
                   onClick={() => router.push("/dashboard/practice")}
                 >
