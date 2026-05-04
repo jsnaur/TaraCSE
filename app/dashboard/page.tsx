@@ -77,12 +77,12 @@ function OnboardingModal({ onComplete }: { onComplete: (level: ExamLevel) => voi
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto overscroll-contain"
       style={{ background: "rgba(0,0,0,0.65)", backdropFilter: "blur(3px)" }}
     >
       <div
         className={`
-          w-full max-w-[560px] bg-card border border-border rounded-2xl overflow-hidden shadow-2xl
+          w-full max-w-[560px] my-auto bg-card border border-border rounded-2xl overflow-hidden shadow-2xl
           transition-all duration-500
           ${confirming ? "scale-95 opacity-0" : "scale-100 opacity-100"}
         `}

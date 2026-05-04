@@ -563,15 +563,25 @@ export default function ReviewPage() {
 
       <div className="relative max-w-2xl mx-auto px-4 pt-8 pb-24 flex flex-col gap-6">
         {/* ── Nav bar ─────────────────────────────────────────── */}
-        <div className="flex items-center justify-between">
-          <Link
-            href="/dashboard/practice"
-            className="flex items-center gap-1.5 text-sm transition-opacity hover:opacity-70"
-            style={{ color: "var(--muted-foreground)" }}
-          >
-            <ArrowLeft size={15} />
-            Practice Hub
-          </Link>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
+            <Link
+              href="/dashboard"
+              className="flex items-center gap-1.5 text-sm transition-opacity hover:opacity-70"
+              style={{ color: "var(--muted-foreground)" }}
+            >
+              <ArrowLeft size={15} />
+              Dashboard
+            </Link>
+            <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>/</span>
+            <Link
+              href="/dashboard/practice"
+              className="text-sm transition-opacity hover:opacity-70"
+              style={{ color: "var(--muted-foreground)" }}
+            >
+              Practice Hub
+            </Link>
+          </div>
           <div className="flex items-center gap-1.5">
             <Trophy size={14} style={{ color: "var(--primary)" }} />
             <span
