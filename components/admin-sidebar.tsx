@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, ReceiptText, Users, FileQuestion, ArrowLeft } from 'lucide-react';
+import { LayoutDashboard, ReceiptText, Users, FileQuestion, ArrowLeft, ScrollText, BrainCircuit } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const adminNavItems = [
@@ -10,6 +10,8 @@ const adminNavItems = [
   { href: '/admin/verifications', label: 'Verifications', icon: ReceiptText },
   { href: '/admin/users', label: 'Users', icon: Users },
   { href: '/admin/questions', label: 'Question Bank', icon: FileQuestion },
+  { href: '/admin/knowledge', label: 'Knowledge Base', icon: BrainCircuit },
+  { href: '/admin/audit', label: 'Audit Log', icon: ScrollText },
 ];
 
 export function AdminSidebar() {

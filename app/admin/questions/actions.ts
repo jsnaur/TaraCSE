@@ -2,6 +2,7 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyAdminStatus } from "@/lib/admin-auth";
+import { logAudit } from "@/lib/audit";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -83,6 +84,11 @@ export async function deleteQuestion(id: string) {
     .eq("id", id);
 
   if (error) throw new Error("Failed to delete question");
+  await logAudit({
+    action_type: "question.deleted",
+    target_resource: `questions/${id}`,
+    details: { question_id: id },
+  });
   revalidatePath("/admin/questions");
 }
 
@@ -141,5 +147,10 @@ export async function revertIngestion(ids: string[]) {
     .in("id", ids);
 
   if (error) throw new Error("Failed to revert ingestion");
+  await logAudit({
+    action_type: "question.ingestion.reverted",
+    target_resource: "questions",
+    details: { count: ids.length, question_ids: ids },
+  });
   revalidatePath("/admin/questions");
 }
