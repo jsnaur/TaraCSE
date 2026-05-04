@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { getSessionReview } from "../../actions";
+import { MathText } from "@/components/ui/math-text";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -265,12 +266,12 @@ function QuestionCard({
               {item.timeTakenSeconds}s
             </span>
           </div>
-          <p
+          <MathText
+            text={item.questionText}
+            block
             className="text-sm font-medium mt-0.5 line-clamp-2 leading-snug"
             style={{ color: "var(--foreground)" }}
-          >
-            {item.questionText}
-          </p>
+          />
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
@@ -308,12 +309,12 @@ function QuestionCard({
               style={{ borderColor: "var(--border)" }}
             >
               {/* Full question text */}
-              <p
+              <MathText
+                text={item.questionText}
+                block
                 className="text-sm mt-3 leading-relaxed"
                 style={{ color: "var(--foreground)" }}
-              >
-                {item.questionText}
-              </p>
+              />
 
               {/* Options */}
               <div className="flex flex-col gap-2">
@@ -382,12 +383,11 @@ function QuestionCard({
                       >
                         {opt.id.toUpperCase()}
                       </span>
-                      <span
+                      <MathText
+                        text={opt.text}
                         className="text-sm flex-1 leading-snug"
                         style={{ color: textColor }}
-                      >
-                        {opt.text}
-                      </span>
+                      />
                       {icon}
                     </div>
                   );
@@ -408,12 +408,12 @@ function QuestionCard({
                 >
                   Explanation
                 </p>
-                <p
+                <MathText
+                  text={item.explanation}
+                  block
                   className="text-sm leading-relaxed"
                   style={{ color: "var(--spark-ai-text)" }}
-                >
-                  {item.explanation}
-                </p>
+                />
               </div>
             </div>
           </motion.div>

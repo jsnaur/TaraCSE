@@ -5,33 +5,45 @@ import { InlineMath, BlockMath } from "react-katex";
 interface MathTextProps {
   text: string;
   className?: string;
+  block?: boolean;
+  style?: React.CSSProperties;
 }
 
-export function MathText({ text, className = "" }: MathTextProps) {
+function renderMarkdown(text: string, keyPrefix: string): React.ReactNode[] {
+  if (!text) return [];
+  const tokens = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
+  return tokens.map((tok, i) => {
+    if (tok.startsWith("**") && tok.endsWith("**")) {
+      return <strong key={`${keyPrefix}-b-${i}`}>{tok.slice(2, -2)}</strong>;
+    }
+    if (tok.startsWith("*") && tok.endsWith("*") && tok.length > 2) {
+      return <em key={`${keyPrefix}-i-${i}`}>{tok.slice(1, -1)}</em>;
+    }
+    return <React.Fragment key={`${keyPrefix}-t-${i}`}>{tok}</React.Fragment>;
+  });
+}
+
+export function MathText({ text, className = "", block = false, style }: MathTextProps) {
   if (!text) return null;
 
-  // Regex safely splits the text by block math ($$...$$) and inline math ($...$)
-  // Capture groups keep the delimiters so we know how to render each chunk
   const parts = text.split(/(\$\$[\s\S]*?\$\$|\$[\s\S]*?\$)/g);
+  const Wrapper = block ? "div" : "span";
 
   return (
-    <div className={className}>
+    <Wrapper className={className} style={style}>
       {parts.map((part, index) => {
-        // Handle Block Math (Standalone equations)
         if (part.startsWith("$$") && part.endsWith("$$")) {
-          const math = part.slice(2, -2); // Remove the $$
-          return <BlockMath key={index} math={math} />;
+          return <BlockMath key={index} math={part.slice(2, -2)} />;
         }
-        
-        // Handle Inline Math (Equations inside a sentence)
-        if (part.startsWith("$") && part.endsWith("$")) {
-          const math = part.slice(1, -1); // Remove the $
-          return <InlineMath key={index} math={math} />;
+        if (part.startsWith("$") && part.endsWith("$") && part.length > 2) {
+          return <InlineMath key={index} math={part.slice(1, -1)} />;
         }
-        
-        // Regular Text (React automatically sanitizes this, preventing XSS)
-        return <span key={index}>{part}</span>;
+        return (
+          <React.Fragment key={index}>
+            {renderMarkdown(part, String(index))}
+          </React.Fragment>
+        );
       })}
-    </div>
+    </Wrapper>
   );
 }
