@@ -157,7 +157,10 @@ export async function createPracticeSession(
     return { error: examSessionError?.message ?? "Failed to create exam session" };
   }
 
-  const { error: linkError } = await supabase
+  // Use adminAuthClient for this update — there is no UPDATE RLS policy on
+  // practice_sessions and using the anon client would silently write 0 rows,
+  // leaving exam_session_id null and breaking all answer-saving downstream.
+  const { error: linkError } = await adminAuthClient
     .from("practice_sessions")
     .update({ exam_session_id: examSession.id })
     .eq("id", data.id);
