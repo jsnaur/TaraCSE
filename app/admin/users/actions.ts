@@ -2,6 +2,7 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyAdminStatus } from "@/lib/admin-auth";
+import { logAudit } from "@/lib/audit";
 import { revalidatePath } from "next/cache";
 
 export interface AdminUser {
@@ -45,6 +46,11 @@ export async function togglePremiumStatus(userId: string, currentStatus: boolean
     .eq("id", userId);
 
   if (error) throw new Error("Failed to update premium status");
+  await logAudit({
+    action_type: currentStatus ? "user.premium.revoked" : "user.premium.granted",
+    target_resource: `profiles/${userId}`,
+    details: { user_id: userId, previous: currentStatus, next: !currentStatus },
+  });
   revalidatePath("/admin/users");
 }
 
@@ -62,5 +68,10 @@ export async function resetAiUses(userId: string) {
     .eq("id", userId);
 
   if (error) throw new Error("Failed to reset AI uses");
+  await logAudit({
+    action_type: "user.ai_uses.reset",
+    target_resource: `profiles/${userId}`,
+    details: { user_id: userId, reset_to: 3 },
+  });
   revalidatePath("/admin/users");
 }

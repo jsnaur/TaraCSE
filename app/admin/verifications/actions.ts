@@ -2,6 +2,7 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyAdminStatus } from "@/lib/admin-auth";
+import { logAudit } from "@/lib/audit";
 import { revalidatePath } from "next/cache";
 import { User } from "./VerificationsClient";
 
@@ -86,6 +87,33 @@ export async function processUserAction(userId: string, actionType: "upgrade" | 
     if (profileError) throw new Error("Failed to revoke user access");
   }
 
+  await logAudit({
+    action_type: actionType === "upgrade" ? "verification.approved" : "user.premium.revoked",
+    target_resource: verificationId ? `payment_verifications/${verificationId}` : `profiles/${userId}`,
+    details: { user_id: userId, verification_id: verificationId ?? null, action: actionType },
+  });
+
   // Tell Next.js to refresh the page data
+  revalidatePath("/admin/verifications");
+}
+
+export async function rejectVerification(verificationId: string, userId: string) {
+  const isAdmin = await verifyAdminStatus();
+  if (!isAdmin) throw new Error("Unauthorized");
+
+  const adminDb = createAdminClient();
+  const { error } = await adminDb
+    .from("payment_verifications")
+    .update({ status: "Rejected", reviewed_at: new Date().toISOString() })
+    .eq("id", verificationId);
+
+  if (error) throw new Error("Failed to reject verification");
+
+  await logAudit({
+    action_type: "verification.rejected",
+    target_resource: `payment_verifications/${verificationId}`,
+    details: { user_id: userId, verification_id: verificationId },
+  });
+
   revalidatePath("/admin/verifications");
 }

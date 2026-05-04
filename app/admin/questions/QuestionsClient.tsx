@@ -139,6 +139,8 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState("");
+  const [ingestMode, setIngestMode] = useState<"file" | "markdown">("file");
+  const [markdownText, setMarkdownText] = useState("");
   const [uploadErrors, setUploadErrors] = useState<{ row: number; issues: string[] }[]>([]);
   const [uploadResult, setUploadResult] = useState<{ 
     inserted: number; 
@@ -332,8 +334,33 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
     }
   };
 
-  const handleUpload = async () => {
-    if (!file) return;
+  // Strips markdown code fences (```tsv ... ``` or bare ```), trims lines,
+  // drops empty lines, and auto-prepends the canonical header row if missing.
+  // Returns the cleaned TSV string.
+  const TSV_HEADER = "level\tcategory\tdifficulty\tquestion_text\toption_a\toption_b\toption_c\toption_d\tcorrect_answer\texplanation";
+
+  function cleanMarkdownToTsv(raw: string): string {
+    // Remove leading/trailing whitespace, then strip any line that is purely a
+    // code fence (``` or ```language). This handles fences anywhere in the text.
+    const lines = raw
+      .replace(/\r\n/g, "\n")
+      .split("\n")
+      .map((l) => l.replace(/\s+$/u, "")) // trim trailing whitespace per line; preserve internal tabs
+      .filter((l) => !/^\s*```[a-zA-Z0-9_-]*\s*$/.test(l)); // drop fence lines
+
+    // Drop fully blank lines.
+    const dataLines = lines.filter((l) => l.trim() !== "");
+    if (dataLines.length === 0) return "";
+
+    // Auto-prepend header if the first line is not the header.
+    const first = dataLines[0].trim().toLowerCase();
+    const looksLikeHeader = first.startsWith("level\t") && first.includes("question_text");
+    return looksLikeHeader
+      ? dataLines.join("\n")
+      : [TSV_HEADER, ...dataLines].join("\n");
+  }
+
+  const submitIngest = async (payload: File) => {
     setIsUploading(true);
     setUploadStatus("Validating Data...");
     setUploadErrors([]);
@@ -341,7 +368,7 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
     setLastIngestedIds([]);
 
     const formData = new FormData();
-    formData.append("file", file);
+    formData.append("file", payload);
 
     try {
       const res = await fetch("/api/admin/ingest", { method: "POST", body: formData });
@@ -350,22 +377,23 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
       if (!res.ok) {
         if (data.errors) {
           setUploadErrors(data.errors);
-          toast({ title: "Validation Failed", description: "Please fix the errors in your file.", variant: "destructive" });
+          toast({ title: "Validation Failed", description: "Please fix the errors and re-submit.", variant: "destructive" });
         } else {
           toast({ title: "Upload Error", description: data.error, variant: "destructive" });
         }
       } else {
         setUploadStatus("Finishing up...");
-        setUploadResult({ 
-          inserted: data.inserted, 
-          skipped: data.skipped, 
+        setUploadResult({
+          inserted: data.inserted,
+          skipped: data.skipped,
           message: data.message,
-          skippedItems: data.skippedItems 
+          skippedItems: data.skippedItems
         });
         setLastIngestedIds(data.insertedIds || []);
         toast({ title: "Ingestion Complete", description: data.message });
-        
+
         setFile(null);
+        setMarkdownText("");
         if (fileInputRef.current) fileInputRef.current.value = "";
         router.refresh();
       }
@@ -375,6 +403,22 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
       setIsUploading(false);
       setUploadStatus("");
     }
+  };
+
+  const handleUpload = async () => {
+    if (!file) return;
+    await submitIngest(file);
+  };
+
+  const handleMarkdownSubmit = async () => {
+    const cleaned = cleanMarkdownToTsv(markdownText);
+    if (!cleaned) {
+      toast({ title: "Empty Input", description: "Paste your TSV content first.", variant: "destructive" });
+      return;
+    }
+    const blob = new Blob([cleaned], { type: "text/tab-separated-values" });
+    const synthesized = new File([blob], "pasted-markdown.tsv", { type: "text/tab-separated-values" });
+    await submitIngest(synthesized);
   };
 
   return (
@@ -588,16 +632,54 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
               </Button>
             </div>
             
-            <div className={`border-2 border-dashed rounded-3xl p-8 text-center transition-colors relative ${file ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/30'}`}>
-              <input type="file" accept=".tsv,.csv,.txt" ref={fileInputRef} onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" disabled={isUploading} />
-              <div className="flex flex-col items-center justify-center space-y-3 pointer-events-none">
-                {file ? (
-                  <><div className="w-16 h-16 rounded-2xl bg-primary/20 flex items-center justify-center text-primary"><FileText className="w-8 h-8" /></div><p className="text-foreground font-bold text-lg">{file.name}</p></>
-                ) : (
-                  <><div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center text-muted-foreground"><UploadCloud className="w-8 h-8" /></div><p className="text-foreground font-bold text-lg">Click or drag a file to upload</p></>
-                )}
-              </div>
-            </div>
+            <Tabs value={ingestMode} onValueChange={(v) => setIngestMode(v as "file" | "markdown")} className="space-y-4">
+              <TabsList className="h-11 rounded-2xl p-1 bg-muted/60 grid grid-cols-2 w-full sm:w-fit">
+                <TabsTrigger value="file" className="rounded-xl px-5 font-bold data-[state=active]:bg-card flex items-center gap-2">
+                  <UploadCloud className="w-4 h-4" /> File Upload
+                </TabsTrigger>
+                <TabsTrigger value="markdown" className="rounded-xl px-5 font-bold data-[state=active]:bg-card flex items-center gap-2">
+                  <FileText className="w-4 h-4" /> Raw Markdown
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="file" className="m-0">
+                <div className={`border-2 border-dashed rounded-3xl p-8 text-center transition-colors relative ${file ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/30'}`}>
+                  <input type="file" accept=".tsv,.csv,.txt" ref={fileInputRef} onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" disabled={isUploading} />
+                  <div className="flex flex-col items-center justify-center space-y-3 pointer-events-none">
+                    {file ? (
+                      <><div className="w-16 h-16 rounded-2xl bg-primary/20 flex items-center justify-center text-primary"><FileText className="w-8 h-8" /></div><p className="text-foreground font-bold text-lg">{file.name}</p></>
+                    ) : (
+                      <><div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center text-muted-foreground"><UploadCloud className="w-8 h-8" /></div><p className="text-foreground font-bold text-lg">Click or drag a file to upload</p></>
+                    )}
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="markdown" className="m-0 space-y-3">
+                <div className="bg-muted/30 border border-border rounded-2xl p-4 text-xs text-muted-foreground leading-relaxed">
+                  <p className="font-bold text-foreground mb-1">Mobile-friendly paste mode</p>
+                  Paste tab-separated rows here — wrapping <code className="bg-card px-1 py-0.5 rounded">```</code> code fences are stripped automatically. The header row is optional; if missing it will be added for you.
+                </div>
+                <textarea
+                  value={markdownText}
+                  onChange={(e) => setMarkdownText(e.target.value)}
+                  disabled={isUploading}
+                  spellCheck={false}
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  placeholder={"```tsv\nProfessional\tNumerical Ability\tMedium\tWhat is 15% of 200?\t15\t20\t30\t45\tC\t15% of 200 = 0.15 × 200 = 30.\n```"}
+                  className="w-full min-h-[260px] rounded-2xl border border-input bg-background px-4 py-3 text-sm font-mono ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-y"
+                />
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs text-muted-foreground">
+                  <span>{markdownText.length.toLocaleString()} characters · {markdownText ? markdownText.split(/\n/).filter((l) => l.trim() && !/^```/.test(l.trim())).length : 0} non-empty lines</span>
+                  {markdownText && (
+                    <Button variant="ghost" size="sm" onClick={() => setMarkdownText("")} className="h-7 text-xs self-end sm:self-auto">
+                      Clear
+                    </Button>
+                  )}
+                </div>
+              </TabsContent>
+            </Tabs>
 
             {/* Ingestion Results / Status Panels */}
             {uploadErrors.length > 0 && (
@@ -676,9 +758,15 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
             )}
 
             <div className="flex justify-end pt-4 border-t border-border">
-              <Button onClick={handleUpload} disabled={!file || isUploading} className="rounded-2xl h-12 px-8 font-bold gap-2 text-md transition-all">
-                {isUploading ? <><Loader2 className="w-5 h-5 animate-spin" /> {uploadStatus}</> : <><UploadCloud className="w-5 h-5" /> Start Bulk Import</>}
-              </Button>
+              {ingestMode === "file" ? (
+                <Button onClick={handleUpload} disabled={!file || isUploading} className="rounded-2xl h-12 px-8 font-bold gap-2 text-md transition-all">
+                  {isUploading ? <><Loader2 className="w-5 h-5 animate-spin" /> {uploadStatus}</> : <><UploadCloud className="w-5 h-5" /> Start Bulk Import</>}
+                </Button>
+              ) : (
+                <Button onClick={handleMarkdownSubmit} disabled={!markdownText.trim() || isUploading} className="rounded-2xl h-12 px-8 font-bold gap-2 text-md transition-all">
+                  {isUploading ? <><Loader2 className="w-5 h-5 animate-spin" /> {uploadStatus}</> : <><FileText className="w-5 h-5" /> Parse & Import</>}
+                </Button>
+              )}
             </div>
           </motion.div>
         </TabsContent>
