@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { MathText } from "@/components/ui/math-text";
 import {
   getUserMonetizationStatus,
   decrementKotAiUsage,
@@ -58,15 +59,6 @@ type QuestionState = {
   aiHint: string | null;
   isChecking: boolean; // For just-in-time backend validation
 };
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function parseMarkdown(text: string): string {
-  if (!text) return "";
-  return text
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*(.+?)\*/g, "<em>$1</em>");
-}
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -440,11 +432,10 @@ export default function PracticePage() {
                     <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4">
                       Question {currentIndex + 1}
                     </p>
-                    <p
+                    <MathText
+                      text={question.text}
+                      block
                       className="font-heading text-[1.2rem] font-semibold leading-[1.75] text-foreground whitespace-pre-line"
-                      dangerouslySetInnerHTML={{
-                        __html: parseMarkdown(question.text),
-                      }}
                     />
                   </CardContent>
                 </Card>
@@ -498,9 +489,10 @@ export default function PracticePage() {
                             opt.id.toUpperCase()
                           )}
                         </span>
-                        <span className="font-medium text-sm leading-relaxed flex-1">
-                          {opt.text}
-                        </span>
+                        <MathText
+                          text={opt.text}
+                          className="font-medium text-sm leading-relaxed flex-1"
+                        />
                         {isAnswered && isRight && (
                           <CheckCircle2 className="w-5 h-5 shrink-0 text-[var(--spark-correct-text)]" />
                         )}
@@ -559,7 +551,9 @@ export default function PracticePage() {
                                 : "Hindi tama. Here's why:"}
                             </p>
                           </div>
-                          <p
+                          <MathText
+                            text={currentState.explanation}
+                            block
                             className="text-sm leading-relaxed font-medium"
                             style={{
                               color: isCorrect
@@ -567,9 +561,7 @@ export default function PracticePage() {
                                 : "var(--spark-wrong-text)",
                               opacity: 0.9,
                             }}
-                          >
-                            {currentState.explanation}
-                          </p>
+                          />
 
                           {/* AI Hint Section */}
                           {currentState.aiHint ? (

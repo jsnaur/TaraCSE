@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { MathText } from "@/components/ui/math-text";
 import {
   getResumeSessionData,
   checkPracticeAnswer,
@@ -47,15 +48,6 @@ type QuestionState = {
   aiHint: string | null;
   isChecking: boolean;
 };
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function parseMarkdown(text: string): string {
-  if (!text) return "";
-  return text
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*(.+?)\*/g, "<em>$1</em>");
-}
 
 // ─── Navigator dot ────────────────────────────────────────────────────────────
 
@@ -588,7 +580,7 @@ export default function ResumeSessionPage() {
                 className="font-heading text-lg sm:text-xl font-semibold leading-relaxed"
                 style={{ color: "var(--foreground)" }}
               >
-                {q.text}
+                <MathText text={q.text} />
               </motion.p>
             </AnimatePresence>
 
@@ -676,12 +668,11 @@ export default function ResumeSessionPage() {
                     >
                       {opt.id.toUpperCase()}
                     </span>
-                    <span
+                    <MathText
+                      text={opt.text}
                       className="flex-1 text-sm leading-relaxed"
                       style={{ color: textColor }}
-                    >
-                      {opt.text}
-                    </span>
+                    />
                     {s.isChecking && !hasAnswered && (
                       <Loader2
                         size={15}
@@ -725,12 +716,10 @@ export default function ResumeSessionPage() {
                   >
                     {s.selectedId === s.correctId ? "Correct!" : "Explanation"}
                   </p>
-                  <p
-                    className="text-sm leading-relaxed"
+                  <MathText
+                    text={s.explanation}
+                    className="text-sm leading-relaxed block"
                     style={{ color: "var(--foreground)" }}
-                    dangerouslySetInnerHTML={{
-                      __html: parseMarkdown(s.explanation),
-                    }}
                   />
 
                   {!s.aiHint && (

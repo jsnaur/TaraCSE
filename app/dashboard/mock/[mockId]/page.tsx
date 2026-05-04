@@ -26,6 +26,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { MathText } from "@/components/ui/math-text";
 
 // ─── Supabase & Server Actions ────────────────────────────────────────────────
 import { createClient } from "@supabase/supabase-js";
@@ -47,13 +48,6 @@ type Question = {
 
 const OPTION_LETTERS = ["A", "B", "C", "D"];
 const EXAM_DURATION_SECONDS = 2 * 60 * 60 + 45 * 60; // 2h 45m
-
-function parseMarkdown(text: string): string {
-  if (!text) return "";
-  return text
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*(.+?)\*/g, "<em>$1</em>");
-}
 
 // ─── Timer Hook ───────────────────────────────────────────────────────────────
 
@@ -486,9 +480,10 @@ export default function MockExamPage() {
                     <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4">
                       Question {currentIndex + 1}
                     </p>
-                    <p 
+                    <MathText
+                      text={question.question_text}
+                      block
                       className="font-heading text-[1.2rem] font-semibold leading-[1.75] text-foreground whitespace-pre-line"
-                      dangerouslySetInnerHTML={{ __html: parseMarkdown(question.question_text) }}
                     />
                   </CardContent>
                 </Card>
@@ -526,16 +521,15 @@ export default function MockExamPage() {
                         </span>
 
                         {/* Option text */}
-                        <span
+                        <MathText
+                          text={opt.text}
                           className={cn(
                             "flex-1 text-sm leading-relaxed",
                             isSelected
                               ? "font-semibold text-foreground"
                               : "font-medium text-foreground"
                           )}
-                        >
-                          {opt.text}
-                        </span>
+                        />
 
                         {/* Dot indicator when selected */}
                         {isSelected && (
