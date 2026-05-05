@@ -2,6 +2,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+import { verifyAdminStatus } from "@/lib/admin-auth";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -53,4 +54,8 @@ export async function saveExamCategory(category: string) {
   if (error) return { error: error.message };
 
   return { success: true };
+}
+
+export async function checkAdminStatus(): Promise<boolean> {
+  return verifyAdminStatus();
 }
