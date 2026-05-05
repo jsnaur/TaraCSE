@@ -93,7 +93,7 @@ const RULES = [
   {
     icon: FileText,
     title: "All Sections Covered",
-    body: "The exam includes all four subject areas in fixed proportion — just like the actual CSE. You cannot skip sections.",
+    body: "The exam includes all subject areas in fixed proportion — just like the actual CSE. You cannot skip sections. Expect roughly 40% Easy, 40% Medium, and 20% Hard questions.",
     severity: "medium" as const,
   },
   {
