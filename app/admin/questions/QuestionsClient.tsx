@@ -434,12 +434,12 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
           <h1 className="font-heading text-2xl md:text-3xl font-black text-foreground">Question Bank</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Manage and organize your interactive review content.</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={handleExport} className="rounded-xl font-bold gap-2 bg-card">
-            <Download className="w-4 h-4" /> Export Filtered
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" onClick={handleExport} className="rounded-xl font-bold gap-2 bg-card flex-1 sm:flex-none justify-center">
+            <Download className="w-4 h-4" /> <span className="sm:inline">Export Filtered</span>
           </Button>
-          <Button onClick={openAddForm} className="rounded-xl font-bold bg-primary text-primary-foreground gap-2">
-            <Plus className="w-4 h-4" /> Add Single
+          <Button onClick={openAddForm} className="rounded-xl font-bold bg-primary text-primary-foreground gap-2 flex-1 sm:flex-none justify-center">
+            <Plus className="w-4 h-4" /> <span className="sm:inline">Add Single</span>
           </Button>
         </div>
       </motion.div>
@@ -455,41 +455,41 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
       {/* ── Main View ── */}
       <Tabs defaultValue="list" className="space-y-6">
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-          <TabsList className="h-11 rounded-2xl p-1 bg-muted/60 w-fit">
-            <TabsTrigger value="list" className="rounded-xl px-6 font-bold data-[state=active]:bg-card flex items-center gap-2">
+          <TabsList className="h-11 rounded-2xl p-1 bg-muted/60 w-full sm:w-fit">
+            <TabsTrigger value="list" className="rounded-xl px-4 sm:px-6 font-bold data-[state=active]:bg-card flex items-center gap-2 flex-1 sm:flex-none justify-center">
               Manage List
               <span className="bg-primary/15 text-primary text-[10px] px-2 py-0.5 rounded-full font-black">
                 {filtered.length}
               </span>
             </TabsTrigger>
-            <TabsTrigger value="ingest" className="rounded-xl px-6 font-bold data-[state=active]:bg-card">Bulk Ingest</TabsTrigger>
+            <TabsTrigger value="ingest" className="rounded-xl px-4 sm:px-6 font-bold data-[state=active]:bg-card flex-1 sm:flex-none justify-center">Bulk Ingest</TabsTrigger>
           </TabsList>
 
           <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto">
-            <div className="relative flex-grow sm:flex-grow-0 sm:w-56">
+            <div className="relative w-full sm:w-56">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input 
-                value={search} 
+              <Input
+                value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search text..." 
-                className="pl-9 h-10 rounded-xl bg-card w-full" 
+                placeholder="Search text..."
+                className="pl-9 h-10 rounded-xl bg-card w-full"
               />
             </div>
-            
-            <select 
+
+            <select
               value={activeLevel}
               onChange={(e) => setActiveLevel(e.target.value as any)}
-              className="h-10 rounded-xl bg-card border px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-ring"
+              className="h-10 rounded-xl bg-card border px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-ring flex-1 sm:flex-none min-w-[120px]"
             >
               <option value="All">All Levels</option>
               <option value="Professional">Professional</option>
               <option value="Subprofessional">Subprofessional</option>
             </select>
 
-            <select 
+            <select
               value={activeCategory}
               onChange={(e) => setActiveCategory(e.target.value)}
-              className="h-10 rounded-xl bg-card border px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-ring"
+              className="h-10 rounded-xl bg-card border px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-ring flex-1 sm:flex-none min-w-[140px]"
             >
               <option value="All">All Categories</option>
               <option value="Verbal Ability">Verbal Ability</option>
@@ -499,10 +499,10 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
               <option value="Clerical Operations">Clerical Operations</option>
             </select>
 
-            <select 
+            <select
               value={activeDifficulty}
               onChange={(e) => setActiveDifficulty(e.target.value)}
-              className="h-10 rounded-xl bg-card border px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-ring"
+              className="h-10 rounded-xl bg-card border px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-ring flex-1 sm:flex-none min-w-[120px]"
             >
               <option value="All">All Difficulties</option>
               <option value="Easy">Easy</option>
@@ -510,10 +510,10 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
               <option value="Hard">Hard</option>
             </select>
 
-            <select 
+            <select
               value={activeStatus}
               onChange={(e) => setActiveStatus(e.target.value as any)}
-              className="h-10 rounded-xl bg-card border px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-ring"
+              className="h-10 rounded-xl bg-card border px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-ring flex-1 sm:flex-none min-w-[120px]"
             >
               <option value="All">All Statuses</option>
               <option value="Active">Active Only</option>
@@ -546,6 +546,7 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
           </div>
 
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-card border rounded-2xl overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="border-border bg-muted/30">
@@ -618,6 +619,7 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
                 </AnimatePresence>
               </TableBody>
             </Table>
+            </div>
           </motion.div>
         </TabsContent>
 
@@ -631,7 +633,7 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
                 </h3>
                 <p className="text-sm text-muted-foreground mt-1">Upload a 10-column TSV file. Headers: <code className="bg-muted px-1.5 py-0.5 rounded text-xs font-bold text-foreground">level, category, difficulty, question_text, option_a, option_b, option_c, option_d, correct_answer, explanation</code></p>
               </div>
-              <Button variant="outline" onClick={handleDownloadTemplate} className="rounded-xl font-bold gap-2 bg-muted/50">
+              <Button variant="outline" onClick={handleDownloadTemplate} className="rounded-xl font-bold gap-2 bg-muted/50 w-full md:w-auto justify-center">
                 <Download className="w-4 h-4" /> Sample Template
               </Button>
             </div>
@@ -858,7 +860,7 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
 
             <div className="space-y-6">
               {/* Metadata row */}
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <label className="text-xs font-bold uppercase text-muted-foreground">Level</label>
                   <select 
