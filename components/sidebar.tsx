@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -10,14 +11,21 @@ import {
   Award,
   Trophy,
   Settings,
-  Lock,
+  ShieldCheck,
   LogOut,
 } from "lucide-react";
 import { logout } from "@/app/(auth)/actions";
+import { checkAdminStatus } from "@/app/dashboard/actions";
 
-// Added className prop to allow conditional hiding/styling in the main layout
 export function Sidebar({ className = "" }: { className?: string }) {
   const pathname = usePathname();
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
+
+  useEffect(() => {
+    checkAdminStatus()
+      .then(setIsAdmin)
+      .catch(() => setIsAdmin(false));
+  }, []);
 
   const navItems = [
     {
@@ -47,9 +55,6 @@ export function Sidebar({ className = "" }: { className?: string }) {
         : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
     }`;
 
-  // Updated isActive function: 
-  // Requires exact match for "/dashboard" to prevent overlapping highlights 
-  // with sub-routes like "/dashboard/practice"
   const isActive = (href: string) => {
     if (href === "/dashboard") {
       return pathname === href;
@@ -93,14 +98,14 @@ export function Sidebar({ className = "" }: { className?: string }) {
         <div className="pt-4 pb-1.5 px-4 text-[9px] font-bold tracking-[0.12em] text-muted-foreground uppercase">
           Progress
         </div>
-        
+
         <Link href="/dashboard/analytics" className={getNavClasses(isActive("/dashboard/analytics"))}>
           <div className="w-6.5 h-6.5 rounded flex items-center justify-center shrink-0 bg-[#2A1F08] text-accent">
             <PieChart className="w-4 h-4" />
           </div>
           Analytics
         </Link>
-        
+
         <Link href="/dashboard/achievements" className={getNavClasses(isActive("/dashboard/achievements"))}>
           <div className="w-6.5 h-6.5 rounded flex items-center justify-center shrink-0 bg-[#1D0E2E] text-[#C080E0]">
             <Award className="w-4 h-4" />
@@ -125,11 +130,32 @@ export function Sidebar({ className = "" }: { className?: string }) {
         <div className="pt-4 pb-1.5 px-4 text-[9px] font-bold tracking-[0.12em] text-muted-foreground uppercase">
           Account
         </div>
+
+        {/* Administration — only rendered for confirmed admin accounts */}
+        {isAdmin && (
+          <>
+            <div className="pt-4 pb-1.5 px-4 text-[9px] font-bold tracking-[0.12em] text-muted-foreground uppercase">
+              Administration
+            </div>
+            <Link
+              href="/admin"
+              className={getNavClasses(pathname?.startsWith("/admin") ?? false)}
+            >
+              <div className="w-6.5 h-6.5 rounded flex items-center justify-center shrink-0 bg-[#1A0A0A] text-red-400">
+                <ShieldCheck className="w-4 h-4" />
+              </div>
+              Admin Panel
+              {(pathname?.startsWith("/admin") ?? false) && (
+                <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />
+              )}
+            </Link>
+          </>
+        )}
       </nav>
 
       {/* Sidebar Bottom (User Info) */}
       <div className="mt-auto p-3.5 border-t border-border shrink-0 relative">
-        <div className="flex items-center gap-2.5 pr-16">
+        <div className="flex items-center gap-2.5 pr-12">
           <div className="w-8 h-8 rounded-full bg-primary/20 border-2 border-primary flex items-center justify-center text-[11px] font-bold text-primary shrink-0 font-heading">
             JR
           </div>
@@ -138,8 +164,8 @@ export function Sidebar({ className = "" }: { className?: string }) {
             <div className="text-[10px] text-muted-foreground mt-px truncate">Mag-aaral II &middot; 620 XP</div>
           </div>
         </div>
-        
-        <form action={logout} className="absolute right-12 bottom-3">
+
+        <form action={logout} className="absolute right-3 bottom-3">
           <button
             type="submit"
             className="rounded-full p-2 opacity-80 text-muted-foreground hover:text-red-500 transition-colors"
@@ -149,15 +175,6 @@ export function Sidebar({ className = "" }: { className?: string }) {
             <LogOut className="w-4 h-4" />
           </button>
         </form>
-
-        <Link
-          href="/admin/verifications"
-          className="absolute right-3 bottom-3 rounded-full p-2 opacity-80 text-muted-foreground hover:text-primary transition-colors"
-          aria-label="Admin verifications dashboard"
-          title="Admin Tools"
-        >
-          <Lock className="w-4 h-4" />
-        </Link>
       </div>
     </aside>
   );
