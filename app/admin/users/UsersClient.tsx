@@ -181,11 +181,11 @@ export default function UsersClient({ initialUsers }: { initialUsers: AdminUser[
           />
         </div>
         <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)}>
-          <TabsList className="h-9 rounded-xl gap-1 bg-muted/60 p-1">
-            <TabsTrigger value="all" className="rounded-lg px-4 text-xs font-semibold data-[state=active]:bg-card">All</TabsTrigger>
-            <TabsTrigger value="premium" className="rounded-lg px-4 text-xs font-semibold data-[state=active]:bg-card text-accent dark:text-accent">Premium</TabsTrigger>
-            <TabsTrigger value="free" className="rounded-lg px-4 text-xs font-semibold data-[state=active]:bg-card">Free</TabsTrigger>
-            <TabsTrigger value="admin" className="rounded-lg px-4 text-xs font-semibold data-[state=active]:bg-card text-rose-600 dark:text-rose-400">Admins</TabsTrigger>
+          <TabsList className="h-9 rounded-xl gap-1 bg-muted/60 p-1 w-full sm:w-fit">
+            <TabsTrigger value="all" className="rounded-lg px-3 sm:px-4 text-xs font-semibold data-[state=active]:bg-card flex-1 sm:flex-none">All</TabsTrigger>
+            <TabsTrigger value="premium" className="rounded-lg px-3 sm:px-4 text-xs font-semibold data-[state=active]:bg-card text-accent dark:text-accent flex-1 sm:flex-none">Premium</TabsTrigger>
+            <TabsTrigger value="free" className="rounded-lg px-3 sm:px-4 text-xs font-semibold data-[state=active]:bg-card flex-1 sm:flex-none">Free</TabsTrigger>
+            <TabsTrigger value="admin" className="rounded-lg px-3 sm:px-4 text-xs font-semibold data-[state=active]:bg-card text-rose-600 dark:text-rose-400 flex-1 sm:flex-none">Admins</TabsTrigger>
           </TabsList>
         </Tabs>
       </motion.div>

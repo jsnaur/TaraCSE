@@ -365,12 +365,12 @@ export default function VerificationsClient({ initialUsers }: { initialUsers: Us
               value={activeTab}
               onValueChange={(v) => setActiveTab(v as "all" | UserStatus)}
             >
-              <TabsList className="h-9 rounded-xl gap-1 bg-muted/60 p-1">
+              <TabsList className="h-9 rounded-xl gap-1 bg-muted/60 p-1 w-full sm:w-fit">
                 {(["all", "pending", "premium", "free"] as const).map((tab) => (
                   <TabsTrigger
                     key={tab}
                     value={tab}
-                    className="rounded-lg px-3.5 text-xs font-semibold capitalize data-[state=active]:bg-card data-[state=active]:shadow-sm"
+                    className="rounded-lg px-2.5 sm:px-3.5 text-xs font-semibold capitalize data-[state=active]:bg-card data-[state=active]:shadow-sm flex-1 sm:flex-none"
                   >
                     {tab === "all" ? "All" : tab.charAt(0).toUpperCase() + tab.slice(1)}
                     <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-muted text-muted-foreground text-[10px] font-bold data-[state=active]:bg-primary/15 data-[state=active]:text-primary">
