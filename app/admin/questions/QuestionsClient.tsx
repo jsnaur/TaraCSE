@@ -58,7 +58,9 @@ import {
   FileText,
   Pencil,
   BookOpen,
-  Check
+  Check,
+  RotateCcw,
+  ChevronDown
 } from "lucide-react";
 import { Question, toggleQuestionStatus, deleteQuestion, addQuestion, updateQuestion, revertIngestion } from "./actions";
 
@@ -152,6 +154,7 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
   // State to hold IDs for reversion
   const [lastIngestedIds, setLastIngestedIds] = useState<string[]>([]);
   const [isReverting, setIsReverting] = useState(false);
+  const [showRevertPanel, setShowRevertPanel] = useState(false);
 
   useEffect(() => {
     setQuestions(initialQuestions);
@@ -326,6 +329,7 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
       toast({ title: "Reverted", description: `Successfully removed ${lastIngestedIds.length} ingested questions.` });
       setLastIngestedIds([]);
       setUploadResult(null);
+      setShowRevertPanel(false);
       router.refresh();
     } catch {
       toast({ title: "Revert Failed", description: "Could not undo ingestion.", variant: "destructive" });
@@ -732,27 +736,51 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
                   </div>
                 </div>
 
-                {/* NEW: Prominent Revert / Undo Banner */}
+                {/* Revert toggle button — only shown when there are ingested IDs to revert */}
                 {lastIngestedIds.length > 0 && (
-                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-rose-50 border border-rose-200 dark:bg-rose-950/30 dark:border-rose-900 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                    <div>
-                      <h4 className="font-bold text-rose-700 dark:text-rose-400 flex items-center gap-2">
-                        <AlertCircle className="w-5 h-5" /> Undo Import
-                      </h4>
-                      <p className="text-sm text-rose-600 dark:text-rose-300 mt-1">
-                        Accidentally uploaded the wrong file? You can safely remove the {lastIngestedIds.length} newly ingested questions.
-                      </p>
-                    </div>
-                    <Button 
-                      onClick={handleRevert} 
-                      disabled={isReverting} 
-                      variant="destructive" 
-                      className="rounded-xl font-bold shrink-0 w-full sm:w-auto shadow-sm hover:shadow-md transition-all"
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => setShowRevertPanel(v => !v)}
+                      className="flex items-center gap-2 text-sm font-semibold text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 border border-rose-300 dark:border-rose-700 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 rounded-xl px-4 py-2.5 w-full sm:w-auto transition-all shadow-sm hover:shadow-md active:scale-95"
                     >
-                      {isReverting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
-                      Undo Import Now
-                    </Button>
-                  </motion.div>
+                      <RotateCcw className="w-4 h-4 shrink-0" />
+                      <span>Undo Import ({lastIngestedIds.length} questions)</span>
+                      <ChevronDown className={`w-4 h-4 ml-auto sm:ml-1 transition-transform duration-200 ${showRevertPanel ? "rotate-180" : ""}`} />
+                    </button>
+
+                    <AnimatePresence>
+                      {showRevertPanel && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                          animate={{ opacity: 1, height: "auto", marginTop: 12 }}
+                          exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="overflow-hidden"
+                        >
+                          <div className="bg-rose-50 border border-rose-200 dark:bg-rose-950/30 dark:border-rose-900 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                            <div>
+                              <h4 className="font-bold text-rose-700 dark:text-rose-400 flex items-center gap-2">
+                                <AlertCircle className="w-5 h-5" /> Undo Import
+                              </h4>
+                              <p className="text-sm text-rose-600 dark:text-rose-300 mt-1">
+                                Accidentally uploaded the wrong file? You can safely remove the {lastIngestedIds.length} newly ingested questions.
+                              </p>
+                            </div>
+                            <Button
+                              onClick={handleRevert}
+                              disabled={isReverting}
+                              variant="destructive"
+                              className="rounded-xl font-bold shrink-0 w-full sm:w-auto shadow-sm hover:shadow-md transition-all"
+                            >
+                              {isReverting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+                              Undo Import Now
+                            </Button>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 )}
               </div>
             )}
