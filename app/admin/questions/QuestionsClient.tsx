@@ -626,14 +626,19 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
         {/* ── Bulk Ingest Tab ── */}
         <TabsContent value="ingest" className="m-0 space-y-6">
            <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="bg-card border rounded-3xl p-6 md:p-8 space-y-6">
-             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-              <div>
+             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
+              <div className="min-w-0 flex-1">
                 <h3 className="text-xl font-black font-heading flex items-center gap-2">
-                  <Database className="w-5 h-5 text-primary" /> Data Ingestion Pipeline
+                  <Database className="w-5 h-5 text-primary shrink-0" /> Data Ingestion Pipeline
                 </h3>
-                <p className="text-sm text-muted-foreground mt-1">Upload a 10-column TSV file. Headers: <code className="bg-muted px-1.5 py-0.5 rounded text-xs font-bold text-foreground">level, category, difficulty, question_text, option_a, option_b, option_c, option_d, correct_answer, explanation</code></p>
+                <p className="text-sm text-muted-foreground mt-1 mb-2">Upload a 10-column TSV file with these headers:</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {["level","category","difficulty","question_text","option_a","option_b","option_c","option_d","correct_answer","explanation"].map(h => (
+                    <code key={h} className="bg-muted px-1.5 py-0.5 rounded text-xs font-bold text-foreground">{h}</code>
+                  ))}
+                </div>
               </div>
-              <Button variant="outline" onClick={handleDownloadTemplate} className="rounded-xl font-bold gap-2 bg-muted/50 w-full md:w-auto justify-center">
+              <Button variant="outline" onClick={handleDownloadTemplate} className="rounded-xl font-bold gap-2 bg-muted/50 w-full sm:w-auto shrink-0 justify-center">
                 <Download className="w-4 h-4" /> Sample Template
               </Button>
             </div>
