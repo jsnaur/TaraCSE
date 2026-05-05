@@ -16,6 +16,7 @@ import {
   Sparkles,
   ClipboardList,
   Lock,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -46,14 +47,49 @@ const ITEM_COUNTS: { value: ItemCount; label: string; sub: string }[] = [
   { value: "endless", label: "∞", sub: "Endless Mode" },
 ];
 
-const DIFFICULTIES: { value: Difficulty; label: string; sub: string }[] = [
-  { value: "Easy", label: "Easy", sub: "Build Confidence" },
-  { value: "Medium", label: "Medium", sub: "Standard Pace" },
-  { value: "Hard", label: "Hard", sub: "Challenge Mode" },
-  { value: "Mixed", label: "Mixed", sub: "All Difficulties" },
+const DIFFICULTIES: {
+  value: Difficulty;
+  label: string;
+  sub: string;
+  activeColor: string;
+  activeBg: string;
+  activeBorder: string;
+}[] = [
+  {
+    value: "Easy",
+    label: "Easy",
+    sub: "Build Confidence",
+    activeColor: "var(--spark-correct-text)",
+    activeBg: "var(--spark-correct-bg)",
+    activeBorder: "var(--spark-correct-border)",
+  },
+  {
+    value: "Medium",
+    label: "Medium",
+    sub: "Standard Pace",
+    activeColor: "#D97706",
+    activeBg: "#FFFBEB",
+    activeBorder: "#FDE68A",
+  },
+  {
+    value: "Hard",
+    label: "Hard",
+    sub: "Challenge Mode",
+    activeColor: "var(--spark-wrong-text)",
+    activeBg: "var(--spark-wrong-bg)",
+    activeBorder: "var(--spark-wrong-border)",
+  },
+  {
+    value: "Mixed",
+    label: "Mixed",
+    sub: "All Difficulties",
+    activeColor: "var(--primary)",
+    activeBg: "var(--spark-ai-bg)",
+    activeBorder: "var(--spark-ai-border)",
+  },
 ];
 
-// ─── Step indicator ───────────────────────────────────────────────────────────
+// ─── Step indicator (2 steps now) ─────────────────────────────────────────────
 
 function StepDot({
   step,
@@ -93,7 +129,7 @@ export default function PracticeSetupPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
   const [examCategory, setExamCategory] = useState<string | null>(null);
-  
+
   const [isPremium, setIsPremium] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
 
@@ -102,18 +138,16 @@ export default function PracticeSetupPage() {
   const [itemCount, setItemCount] = useState<ItemCount | null>(null);
   const [difficulty, setDifficulty] = useState<Difficulty>("Mixed");
 
-  // Fetch user's exam category & premium status on mount
   useEffect(() => {
     async function load() {
       const [profileRes, monStatus] = await Promise.all([
         getProfile(),
-        getUserMonetizationStatus()
+        getUserMonetizationStatus(),
       ]);
 
       if (profileRes?.profile?.exam_category) {
         setExamCategory(profileRes.profile.exam_category);
       } else {
-        // If no category is found, kick them back to the dashboard to select one
         router.push("/dashboard");
         return;
       }
@@ -127,7 +161,6 @@ export default function PracticeSetupPage() {
     load();
   }, [router]);
 
-  // Dynamically build the category options based on user's exam track
   const availableCategories = useMemo(() => {
     const base = [
       {
@@ -196,26 +229,28 @@ export default function PracticeSetupPage() {
     );
   };
 
-  // derive per-step validity
   const step1Valid = categories.length > 0;
+  // difficulty always has a default ("Mixed"), so step 2 only requires itemCount
   const step2Valid = itemCount !== null;
-  const step3Valid = difficulty !== null;
-  const allValid = step1Valid && step2Valid && step3Valid;
+  const allValid = step1Valid && step2Valid;
 
   const handleStart = async () => {
     if (!allValid) return;
     setIsStarting(true);
 
     try {
-      const res = await createPracticeSession(categories, String(itemCount), difficulty);
-      
+      const res = await createPracticeSession(
+        categories,
+        String(itemCount),
+        difficulty
+      );
+
       if (res?.error || !res?.practiceId) {
         console.error("Failed to start session:", res?.error);
         setIsStarting(false);
         return;
       }
 
-      // Route to the actual practiceId dynamic route
       router.push(`/dashboard/practice/${res.practiceId}`);
     } catch (error) {
       console.error(error);
@@ -223,7 +258,6 @@ export default function PracticeSetupPage() {
     }
   };
 
-  // summary label helpers
   const allowedCategoriesList = availableCategories.filter(
     (c) => isPremium || (c.id !== "numerical" && c.id !== "analytical")
   );
@@ -234,7 +268,7 @@ export default function PracticeSetupPage() {
       : categories
           .map((c) => availableCategories.find((x) => x.id === c)?.label)
           .join(", ");
-          
+
   const summaryItems =
     itemCount === "endless"
       ? "Endless"
@@ -242,25 +276,18 @@ export default function PracticeSetupPage() {
       ? `${itemCount} items`
       : null;
 
-  const summaryDifficulty = difficulty;
-
-  // Prevent flash of UI while checking auth
   if (isLoading) {
     return <div className="min-h-screen w-full bg-background" />;
   }
 
   return (
-    <div
-      className="min-h-screen w-full"
-      style={{ background: "var(--background)" }}
-    >
+    <div className="min-h-screen w-full" style={{ background: "var(--background)" }}>
       {/* ambient blobs */}
       <div
         aria-hidden
         className="pointer-events-none fixed top-0 right-0 w-[480px] h-[480px] opacity-20 blur-[120px] rounded-full"
         style={{
-          background:
-            "radial-gradient(circle, var(--primary) 0%, transparent 70%)",
+          background: "radial-gradient(circle, var(--primary) 0%, transparent 70%)",
           transform: "translate(30%,-30%)",
         }}
       />
@@ -268,14 +295,13 @@ export default function PracticeSetupPage() {
         aria-hidden
         className="pointer-events-none fixed bottom-0 left-0 w-[380px] h-[380px] opacity-15 blur-[100px] rounded-full"
         style={{
-          background:
-            "radial-gradient(circle, var(--secondary) 0%, transparent 70%)",
+          background: "radial-gradient(circle, var(--secondary) 0%, transparent 70%)",
           transform: "translate(-40%,40%)",
         }}
       />
 
       <div className="relative max-w-2xl mx-auto px-4 pt-8 pb-24 flex flex-col gap-8">
-        {/* ── Back nav ───────────────────────────────────────── */}
+        {/* ── Back nav + step indicator ──────────────────────── */}
         <div className="flex items-center justify-between">
           <Link
             href="/dashboard/practice"
@@ -285,12 +311,12 @@ export default function PracticeSetupPage() {
             <ArrowLeft size={15} /> Back to Practice
           </Link>
 
-          {/* step indicator */}
+          {/* 2-dot step indicator */}
           <div className="flex items-center gap-1">
-            {[1, 2, 3].map((s) => (
+            {[1, 2].map((s) => (
               <div key={s} className="flex items-center gap-1">
                 <StepDot step={s} current={step} done={s < step} />
-                {s < 3 && (
+                {s < 2 && (
                   <div
                     className="w-6 h-0.5 rounded-full transition-all duration-500"
                     style={{
@@ -310,7 +336,7 @@ export default function PracticeSetupPage() {
             className="text-xs uppercase tracking-widest font-medium mb-1"
             style={{ color: "var(--primary)" }}
           >
-            Step {step} of 3
+            Step {step} of 2
           </p>
           <h1
             className="font-heading text-3xl font-bold leading-tight"
@@ -318,25 +344,18 @@ export default function PracticeSetupPage() {
           >
             {step === 1 && `Pick your categories for the ${examCategory} exam.`}
             {step === 2 && "How many questions?"}
-            {step === 3 && "Choose your difficulty."}
           </h1>
-          <p
-            className="text-sm mt-1"
-            style={{ color: "var(--muted-foreground)" }}
-          >
+          <p className="text-sm mt-1" style={{ color: "var(--muted-foreground)" }}>
             {step === 1 &&
               "Select one or more subject areas to include in this session."}
             {step === 2 &&
-              "Pick a session length. Endless mode keeps going until you stop."}
-            {step === 3 &&
-              "Calibrate the challenge. Mixed pulls from all difficulties."}
+              "Pick a session length, then adjust difficulty if needed."}
           </p>
         </header>
 
         {/* ── Step 1: Categories ─────────────────────────────── */}
         {step === 1 && (
           <div className="flex flex-col gap-3">
-            {/* Select All shortcut */}
             <button
               onClick={() =>
                 setCategories(
@@ -348,21 +367,25 @@ export default function PracticeSetupPage() {
               className="self-start text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-medium transition-all duration-150 hover:opacity-80"
               style={{
                 borderColor:
-                  categories.length === allowedCategoriesList.length && categories.length > 0
+                  categories.length === allowedCategoriesList.length &&
+                  categories.length > 0
                     ? "var(--primary)"
                     : "var(--border)",
                 color:
-                  categories.length === allowedCategoriesList.length && categories.length > 0
+                  categories.length === allowedCategoriesList.length &&
+                  categories.length > 0
                     ? "var(--primary)"
                     : "var(--muted-foreground)",
                 background:
-                  categories.length === allowedCategoriesList.length && categories.length > 0
+                  categories.length === allowedCategoriesList.length &&
+                  categories.length > 0
                     ? "var(--spark-ai-bg)"
                     : "var(--card)",
               }}
             >
               <Layers size={12} />
-              {categories.length === allowedCategoriesList.length && categories.length > 0
+              {categories.length === allowedCategoriesList.length &&
+              categories.length > 0
                 ? "Deselect All"
                 : "Select All"}
             </button>
@@ -370,7 +393,9 @@ export default function PracticeSetupPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {availableCategories.map((cat) => {
                 const active = categories.includes(cat.id);
-                const isLocked = !isPremium && (cat.id === "numerical" || cat.id === "analytical");
+                const isLocked =
+                  !isPremium &&
+                  (cat.id === "numerical" || cat.id === "analytical");
                 const Icon = cat.icon;
 
                 return (
@@ -383,13 +408,13 @@ export default function PracticeSetupPage() {
                       }
                       toggleCategory(cat.id);
                     }}
-                    className={`relative text-left rounded-3xl border p-5 flex flex-col gap-3 transition-all duration-200 focus:outline-none ${isLocked ? "opacity-70 hover:scale-100" : "hover:scale-[1.01]"}`}
+                    className={`relative text-left rounded-3xl border p-5 flex flex-col gap-3 transition-all duration-200 focus:outline-none ${
+                      isLocked ? "opacity-70 hover:scale-100" : "hover:scale-[1.01]"
+                    }`}
                     style={{
                       background: active ? cat.bg : "var(--card)",
                       borderColor: active ? cat.color : "var(--border)",
-                      boxShadow: active
-                        ? `0 0 0 2px ${cat.color}`
-                        : "none",
+                      boxShadow: active ? `0 0 0 2px ${cat.color}` : "none",
                     }}
                   >
                     {isLocked && (
@@ -397,10 +422,11 @@ export default function PracticeSetupPage() {
                         <Lock size={14} className="text-muted-foreground" />
                       </div>
                     )}
-
                     <div className="flex items-start justify-between">
                       <div
-                        className={`w-10 h-10 rounded-2xl flex items-center justify-center ${isLocked ? "grayscale" : ""}`}
+                        className={`w-10 h-10 rounded-2xl flex items-center justify-center ${
+                          isLocked ? "grayscale" : ""
+                        }`}
                         style={{
                           background: active ? cat.color : "var(--muted)",
                           color: active ? "white" : cat.color,
@@ -416,11 +442,7 @@ export default function PracticeSetupPage() {
                         }}
                       >
                         {active && (
-                          <CheckCircle2
-                            size={11}
-                            strokeWidth={3}
-                            color="white"
-                          />
+                          <CheckCircle2 size={11} strokeWidth={3} color="white" />
                         )}
                       </div>
                     </div>
@@ -445,124 +467,134 @@ export default function PracticeSetupPage() {
           </div>
         )}
 
-        {/* ── Step 2: Item Count ─────────────────────────────── */}
+        {/* ── Step 2: Item Count + Difficulty inline ─────────── */}
         {step === 2 && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {ITEM_COUNTS.map((opt) => {
-              const active = itemCount === opt.value;
-              const isLocked = !isPremium && (opt.value === 50 || opt.value === "endless");
+          <div className="flex flex-col gap-6">
+            {/* Item count tiles */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {ITEM_COUNTS.map((opt) => {
+                const active = itemCount === opt.value;
+                const isLocked =
+                  !isPremium &&
+                  (opt.value === 50 || opt.value === "endless");
 
-              return (
-                <button
-                  key={String(opt.value)}
-                  onClick={() => {
-                    if (isLocked) {
-                      setShowPaywall(true);
-                      return;
-                    }
-                    setItemCount(opt.value);
-                  }}
-                  className={`relative rounded-3xl border p-5 flex flex-col items-center justify-center gap-2 aspect-square transition-all duration-200 focus:outline-none ${isLocked ? "opacity-70 hover:scale-100" : "hover:scale-[1.03]"}`}
-                  style={{
-                    background: active ? "var(--spark-ai-bg)" : "var(--card)",
-                    borderColor: active ? "var(--primary)" : "var(--border)",
-                    boxShadow: active
-                      ? "0 0 0 2px var(--primary)"
-                      : "none",
-                  }}
+                return (
+                  <button
+                    key={String(opt.value)}
+                    onClick={() => {
+                      if (isLocked) {
+                        setShowPaywall(true);
+                        return;
+                      }
+                      setItemCount(opt.value);
+                    }}
+                    className={`relative rounded-3xl border p-5 flex flex-col items-center justify-center gap-2 aspect-square transition-all duration-200 focus:outline-none ${
+                      isLocked ? "opacity-70 hover:scale-100" : "hover:scale-[1.03]"
+                    }`}
+                    style={{
+                      background: active ? "var(--spark-ai-bg)" : "var(--card)",
+                      borderColor: active ? "var(--primary)" : "var(--border)",
+                      boxShadow: active ? "0 0 0 2px var(--primary)" : "none",
+                    }}
+                  >
+                    {isLocked && (
+                      <div className="absolute top-3 right-3 bg-background/80 backdrop-blur-sm p-1.5 rounded-full shadow-sm border">
+                        <Lock size={12} className="text-muted-foreground" />
+                      </div>
+                    )}
+                    <span
+                      className="font-heading text-4xl font-bold leading-none"
+                      style={{
+                        color: active ? "var(--primary)" : "var(--foreground)",
+                      }}
+                    >
+                      {opt.label}
+                    </span>
+                    <span
+                      className="text-xs font-medium"
+                      style={{
+                        color: active ? "var(--primary)" : "var(--muted-foreground)",
+                      }}
+                    >
+                      {opt.sub}
+                    </span>
+                    {active && (
+                      <div
+                        className="w-1.5 h-1.5 rounded-full"
+                        style={{ background: "var(--primary)" }}
+                      />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Difficulty inline — secondary choice, always visible on step 2 */}
+            <div
+              className="rounded-2xl border p-4 flex flex-col gap-3"
+              style={{ background: "var(--card)", borderColor: "var(--border)" }}
+            >
+              <div className="flex items-center gap-2">
+                <Zap size={13} style={{ color: "var(--muted-foreground)" }} />
+                <span
+                  className="text-xs uppercase tracking-widest font-medium"
+                  style={{ color: "var(--muted-foreground)" }}
                 >
-                  {isLocked && (
-                    <div className="absolute top-3 right-3 bg-background/80 backdrop-blur-sm p-1.5 rounded-full shadow-sm border">
-                      <Lock size={12} className="text-muted-foreground" />
-                    </div>
-                  )}
-
-                  <span
-                    className="font-heading text-4xl font-bold leading-none"
-                    style={{
-                      color: active ? "var(--primary)" : "var(--foreground)",
-                    }}
-                  >
-                    {opt.label}
-                  </span>
-                  <span
-                    className="text-xs font-medium"
-                    style={{
-                      color: active
-                        ? "var(--primary)"
-                        : "var(--muted-foreground)",
-                    }}
-                  >
-                    {opt.sub}
-                  </span>
-                  {active && (
-                    <div
-                      className="w-1.5 h-1.5 rounded-full"
-                      style={{ background: "var(--primary)" }}
-                    />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {/* ── Step 3: Difficulty ─────────────────────────────── */}
-        {step === 3 && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {DIFFICULTIES.map((opt) => {
-              const active = difficulty === opt.value;
-
-              return (
-                <button
-                  key={opt.value}
-                  onClick={() => setDifficulty(opt.value)}
-                  className="relative rounded-3xl border p-5 flex flex-col items-center justify-center gap-2 aspect-square transition-all duration-200 focus:outline-none hover:scale-[1.03]"
-                  style={{
-                    background: active ? "var(--spark-ai-bg)" : "var(--card)",
-                    borderColor: active ? "var(--primary)" : "var(--border)",
-                    boxShadow: active
-                      ? "0 0 0 2px var(--primary)"
-                      : "none",
-                  }}
+                  Difficulty
+                </span>
+                <span
+                  className="text-[10px] font-medium ml-auto"
+                  style={{ color: "var(--muted-foreground)" }}
                 >
-                  <span
-                    className="font-heading text-2xl font-bold leading-none"
-                    style={{
-                      color: active ? "var(--primary)" : "var(--foreground)",
-                    }}
-                  >
-                    {opt.label}
-                  </span>
-                  <span
-                    className="text-xs font-medium text-center"
-                    style={{
-                      color: active
-                        ? "var(--primary)"
-                        : "var(--muted-foreground)",
-                    }}
-                  >
-                    {opt.sub}
-                  </span>
-                  {active && (
-                    <div
-                      className="w-1.5 h-1.5 rounded-full"
-                      style={{ background: "var(--primary)" }}
-                    />
-                  )}
-                </button>
-              );
-            })}
+                  Mixed is the default
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {DIFFICULTIES.map((opt) => {
+                  const active = difficulty === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      onClick={() => setDifficulty(opt.value)}
+                      className="rounded-2xl border px-3 py-2.5 flex flex-col items-center gap-0.5 transition-all duration-150 hover:scale-[1.02] focus:outline-none"
+                      style={{
+                        background: active ? opt.activeBg : "var(--background)",
+                        borderColor: active ? opt.activeColor : "var(--border)",
+                        boxShadow: active
+                          ? `0 0 0 1.5px ${opt.activeColor}`
+                          : "none",
+                      }}
+                    >
+                      <span
+                        className="text-sm font-heading font-bold"
+                        style={{
+                          color: active ? opt.activeColor : "var(--foreground)",
+                        }}
+                      >
+                        {opt.label}
+                      </span>
+                      <span
+                        className="text-[10px] font-medium text-center leading-tight"
+                        style={{
+                          color: active
+                            ? opt.activeColor
+                            : "var(--muted-foreground)",
+                        }}
+                      >
+                        {opt.sub}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         )}
 
         {/* ── Summary strip ─────────────────────────────────── */}
         <div
           className="rounded-2xl border px-4 py-3 flex items-center gap-3 flex-wrap"
-          style={{
-            background: "var(--card)",
-            borderColor: "var(--border)",
-          }}
+          style={{ background: "var(--card)", borderColor: "var(--border)" }}
         >
           <span
             className="text-xs uppercase tracking-widest font-medium"
@@ -573,10 +605,7 @@ export default function PracticeSetupPage() {
           {examCategory && (
             <>
               <ChevronRight size={12} style={{ color: "var(--muted-foreground)" }} />
-              <span
-                className="text-xs font-bold"
-                style={{ color: "var(--primary)" }}
-              >
+              <span className="text-xs font-bold" style={{ color: "var(--primary)" }}>
                 {examCategory}
               </span>
             </>
@@ -584,33 +613,25 @@ export default function PracticeSetupPage() {
           {categories.length > 0 && (
             <>
               <ChevronRight size={12} style={{ color: "var(--muted-foreground)" }} />
-              <span
-                className="text-xs font-bold"
-                style={{ color: "var(--foreground)" }}
-              >
+              <span className="text-xs font-bold" style={{ color: "var(--foreground)" }}>
                 {summaryCategories}
               </span>
             </>
           )}
-          {step >= 2 && summaryItems && (
+          {summaryItems && (
             <>
               <ChevronRight size={12} style={{ color: "var(--muted-foreground)" }} />
-              <span
-                className="text-xs font-bold"
-                style={{ color: "var(--foreground)" }}
-              >
+              <span className="text-xs font-bold" style={{ color: "var(--foreground)" }}>
                 {summaryItems}
               </span>
             </>
           )}
-          {step >= 3 && summaryDifficulty && (
+          {/* Difficulty always shows once on step 2 */}
+          {step === 2 && (
             <>
               <ChevronRight size={12} style={{ color: "var(--muted-foreground)" }} />
-              <span
-                className="text-xs font-bold"
-                style={{ color: "var(--foreground)" }}
-              >
-                {summaryDifficulty}
+              <span className="text-xs font-bold" style={{ color: "var(--foreground)" }}>
+                {difficulty}
               </span>
             </>
           )}
@@ -618,7 +639,6 @@ export default function PracticeSetupPage() {
 
         {/* ── Navigation buttons ─────────────────────────────── */}
         <div className="flex items-center justify-between gap-3 pt-2">
-          {/* Back / step back */}
           {step === 1 ? (
             <Link href="/dashboard/practice">
               <Button
@@ -648,27 +668,21 @@ export default function PracticeSetupPage() {
             </Button>
           )}
 
-          {/* Next / Start */}
-          {step < 3 ? (
-            (() => {
-              const stepValid = step === 1 ? step1Valid : step2Valid;
-              return (
-                <Button
-                  onClick={() => setStep((s) => s + 1)}
-                  disabled={!stepValid}
-                  className="rounded-2xl gap-2 font-heading font-bold px-6"
-                  style={{
-                    background: stepValid ? "var(--primary)" : "var(--muted)",
-                    color: stepValid
-                      ? "var(--primary-foreground)"
-                      : "var(--muted-foreground)",
-                    cursor: stepValid ? "pointer" : "not-allowed",
-                  }}
-                >
-                  Continue <ArrowRight size={15} />
-                </Button>
-              );
-            })()
+          {step < 2 ? (
+            <Button
+              onClick={() => setStep((s) => s + 1)}
+              disabled={!step1Valid}
+              className="rounded-2xl gap-2 font-heading font-bold px-6"
+              style={{
+                background: step1Valid ? "var(--primary)" : "var(--muted)",
+                color: step1Valid
+                  ? "var(--primary-foreground)"
+                  : "var(--muted-foreground)",
+                cursor: step1Valid ? "pointer" : "not-allowed",
+              }}
+            >
+              Continue <ArrowRight size={15} />
+            </Button>
           ) : (
             <Button
               onClick={handleStart}
@@ -698,16 +712,20 @@ export default function PracticeSetupPage() {
         </div>
       </div>
 
-      {/* ── Paywall Modal ────────────────────────────────────────── */}
+      {/* ── Paywall Modal ─────────────────────────────────────── */}
       <AlertDialog open={showPaywall} onOpenChange={setShowPaywall}>
         <AlertDialogContent className="rounded-[32px] sm:rounded-[32px] max-w-sm">
           <AlertDialogHeader>
             <div className="mx-auto bg-primary/10 w-16 h-16 rounded-full flex items-center justify-center mb-4">
               <Lock className="text-primary w-8 h-8" />
             </div>
-            <AlertDialogTitle className="font-heading text-2xl text-center">Unlock Full Access</AlertDialogTitle>
+            <AlertDialogTitle className="font-heading text-2xl text-center">
+              Unlock Full Access
+            </AlertDialogTitle>
             <AlertDialogDescription className="text-center text-base">
-              Numerical & Analytical categories, along with extended item counts, are reserved for Premium users. Unlock everything for a one-time ₱99!
+              Numerical & Analytical categories, along with extended item
+              counts, are reserved for Premium users. Unlock everything for a
+              one-time ₱99!
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="sm:justify-center sm:space-x-3 mt-4 flex-col gap-2">
