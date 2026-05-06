@@ -29,6 +29,7 @@ import {
   Flag,
   Lock,
 } from "lucide-react";
+import { BookmarkButton } from "@/components/ui/bookmark-button";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { MathText } from "@/components/ui/math-text";
@@ -40,6 +41,7 @@ import {
   saveAnswer,
   completeSession,
 } from "../actions";
+import { getBookmarkStatus } from "@/app/dashboard/bookmarks/actions";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -76,6 +78,9 @@ export default function PracticePage() {
   const [isPremium, setIsPremium] = useState(false);
   const [aiUsesLeft, setAiUsesLeft] = useState<number | "unlimited">(3);
   const [showAiPaywall, setShowAiPaywall] = useState(false);
+
+  // Bookmark State
+  const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
 
   // Session State
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -122,6 +127,15 @@ export default function PracticePage() {
             isChecking: false,
           }))
         );
+
+        const ids = sessionData.questions.map((q: { id: string }) => q.id);
+        if (ids.length > 0) {
+          getBookmarkStatus(ids).then((bResult) => {
+            if (!("error" in bResult)) {
+              setBookmarkedIds(new Set(bResult.bookmarkedIds));
+            }
+          });
+        }
       }
 
       setIsLoading(false);
@@ -428,7 +442,14 @@ export default function PracticePage() {
               >
                 {/* Question card */}
                 <Card className="rounded-3xl border shadow-sm bg-card mb-6">
-                  <CardContent className="p-8">
+                  <CardContent className="p-8 relative">
+                    <div className="absolute top-4 right-4">
+                      <BookmarkButton
+                        questionId={question.id}
+                        initialBookmarked={bookmarkedIds.has(question.id)}
+                        size="sm"
+                      />
+                    </div>
                     <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4">
                       Question {currentIndex + 1}
                     </p>
