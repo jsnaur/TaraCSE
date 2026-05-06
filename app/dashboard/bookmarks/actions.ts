@@ -34,7 +34,7 @@ async function getAuthUser() {
   const { data: { user }, error } = await supabase.auth.getUser(accessToken);
   if (error || !user) return null;
 
-  return { user, accessToken };
+  return { user };
 }
 
 const QuestionIdSchema = z.string().uuid();
