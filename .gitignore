@@ -49,6 +49,9 @@ proxy.ts
 CLAUDE.md
 .claude/
 
+# gitnexus
+.gitnexus/
+
 # Playwright
 playwright.config.ts
 playwright.config.js
