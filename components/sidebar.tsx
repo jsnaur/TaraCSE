@@ -13,6 +13,7 @@ import {
   Settings,
   ShieldCheck,
   LogOut,
+  Bookmark,
 } from "lucide-react";
 import { logout } from "@/app/(auth)/actions";
 import { checkAdminStatus } from "@/app/dashboard/actions";
@@ -45,6 +46,12 @@ export function Sidebar({ className = "" }: { className?: string }) {
       label: "Mock Exams",
       icon: Timer,
       iconBg: "bg-[#1B1125] text-[#D9B7FF]",
+    },
+    {
+      href: "/dashboard/bookmarks",
+      label: "Saved Questions",
+      icon: Bookmark,
+      iconBg: "bg-[#0F1F10] text-[#86EFAC]",
     },
   ];
 

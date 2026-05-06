@@ -17,8 +17,10 @@ import {
   LayoutGrid,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BookmarkButton } from "@/components/ui/bookmark-button";
 import { motion, AnimatePresence } from "framer-motion";
 import { getSessionReview } from "../../actions";
+import { getBookmarkStatus } from "@/app/dashboard/bookmarks/actions";
 import { MathText } from "@/components/ui/math-text";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -215,10 +217,12 @@ function QuestionCard({
   item,
   expanded,
   onToggle,
+  initialBookmarked,
 }: {
   item: ReviewItem;
   expanded: boolean;
   onToggle: () => void;
+  initialBookmarked: boolean;
 }) {
   return (
     <div
@@ -230,69 +234,79 @@ function QuestionCard({
           : "var(--spark-wrong-border)",
       }}
     >
-      {/* Clickable header row */}
-      <button
-        onClick={onToggle}
-        className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:opacity-80 transition-opacity"
-      >
-        {/* Index badge */}
-        <div
-          className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-xs font-bold font-heading"
-          style={{
-            background: item.isCorrect
-              ? "var(--spark-correct-bg)"
-              : "var(--spark-wrong-bg)",
-            color: item.isCorrect
-              ? "var(--spark-correct-text)"
-              : "var(--spark-wrong-text)",
-          }}
+      {/* Header row */}
+      <div className="flex items-center px-4 py-3.5 gap-2">
+        <button
+          onClick={onToggle}
+          className="flex-1 flex items-center gap-3 text-left hover:opacity-80 transition-opacity min-w-0"
         >
-          {item.index}
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span
-              className="text-[10px] font-bold uppercase tracking-wider"
-              style={{ color: "var(--muted-foreground)" }}
-            >
-              {item.category}
-            </span>
-            <span
-              className="text-[10px] flex items-center gap-0.5"
-              style={{ color: "var(--muted-foreground)" }}
-            >
-              <Clock size={9} />
-              {item.timeTakenSeconds}s
-            </span>
+          {/* Index badge */}
+          <div
+            className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-xs font-bold font-heading"
+            style={{
+              background: item.isCorrect
+                ? "var(--spark-correct-bg)"
+                : "var(--spark-wrong-bg)",
+              color: item.isCorrect
+                ? "var(--spark-correct-text)"
+                : "var(--spark-wrong-text)",
+            }}
+          >
+            {item.index}
           </div>
-          <MathText
-            text={item.questionText}
-            block
-            className="text-sm font-medium mt-0.5 line-clamp-2 leading-snug"
-            style={{ color: "var(--foreground)" }}
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span
+                className="text-[10px] font-bold uppercase tracking-wider"
+                style={{ color: "var(--muted-foreground)" }}
+              >
+                {item.category}
+              </span>
+              <span
+                className="text-[10px] flex items-center gap-0.5"
+                style={{ color: "var(--muted-foreground)" }}
+              >
+                <Clock size={9} />
+                {item.timeTakenSeconds}s
+              </span>
+            </div>
+            <MathText
+              text={item.questionText}
+              block
+              className="text-sm font-medium mt-0.5 line-clamp-2 leading-snug"
+              style={{ color: "var(--foreground)" }}
+            />
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {item.isCorrect ? (
+              <CheckCircle2
+                size={18}
+                style={{ color: "var(--spark-correct-text)" }}
+              />
+            ) : (
+              <XCircle size={18} style={{ color: "var(--spark-wrong-text)" }} />
+            )}
+            {expanded ? (
+              <ChevronUp size={14} style={{ color: "var(--muted-foreground)" }} />
+            ) : (
+              <ChevronDown
+                size={14}
+                style={{ color: "var(--muted-foreground)" }}
+              />
+            )}
+          </div>
+        </button>
+
+        <div className="shrink-0 -mr-1">
+          <BookmarkButton
+            questionId={item.questionId}
+            initialBookmarked={initialBookmarked}
+            size="sm"
           />
         </div>
-
-        <div className="flex items-center gap-2 shrink-0">
-          {item.isCorrect ? (
-            <CheckCircle2
-              size={18}
-              style={{ color: "var(--spark-correct-text)" }}
-            />
-          ) : (
-            <XCircle size={18} style={{ color: "var(--spark-wrong-text)" }} />
-          )}
-          {expanded ? (
-            <ChevronUp size={14} style={{ color: "var(--muted-foreground)" }} />
-          ) : (
-            <ChevronDown
-              size={14}
-              style={{ color: "var(--muted-foreground)" }}
-            />
-          )}
-        </div>
-      </button>
+      </div>
 
       {/* Expanded content */}
       <AnimatePresence>
@@ -434,6 +448,7 @@ export default function ReviewPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!params.sessionId) return;
@@ -443,11 +458,19 @@ export default function ReviewPage() {
       } else {
         setSession(result.session);
         setItems(result.items);
-        // Auto-expand incorrect questions for focused review
         const incorrectIds = new Set(
           result.items.filter((i) => !i.isCorrect).map((i) => i.questionId)
         );
         setExpandedIds(incorrectIds);
+
+        const qIds = result.items.map((i) => i.questionId);
+        if (qIds.length > 0) {
+          getBookmarkStatus(qIds).then((bResult) => {
+            if (!("error" in bResult)) {
+              setBookmarkedIds(new Set(bResult.bookmarkedIds));
+            }
+          });
+        }
       }
       setIsLoading(false);
     });
@@ -714,6 +737,7 @@ export default function ReviewPage() {
                 item={item}
                 expanded={expandedIds.has(item.questionId)}
                 onToggle={() => toggleExpand(item.questionId)}
+                initialBookmarked={bookmarkedIds.has(item.questionId)}
               />
             ))}
           </div>
