@@ -1,3 +1,4 @@
+// services/ai/gemini.ts
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
@@ -62,23 +63,30 @@ export async function getKotAiResponse(params: {
   currentQuestion: CurrentQuestion;
   retrievedContext: RetrievedContext[];
 }): Promise<string> {
-  const model = genAI.getGenerativeModel({
-    model: "gemini-2.0-flash",
-    generationConfig: {
-      maxOutputTokens: 400,
-      temperature: 0.4,
-    },
-  });
+  try {
+    // Explicitly using the latest version alias to prevent 404 errors on v1beta
+    const model = genAI.getGenerativeModel({
+      model: "gemini-1.5-flash-latest",
+      generationConfig: {
+        maxOutputTokens: 400,
+        temperature: 0.4,
+      },
+    });
 
-  const systemPrompt = buildKotAiSystemPrompt(
-    params.currentQuestion,
-    params.retrievedContext
-  );
+    const systemPrompt = buildKotAiSystemPrompt(
+      params.currentQuestion,
+      params.retrievedContext
+    );
 
-  const result = await model.generateContent([
-    { text: systemPrompt },
-    { text: "Please explain this question and why the correct answer is right." },
-  ]);
+    const result = await model.generateContent([
+      { text: systemPrompt },
+      { text: "Please explain this question and why the correct answer is right." },
+    ]);
 
-  return sanitizeAiOutput(result.response.text());
+    return sanitizeAiOutput(result.response.text());
+  } catch (error: any) {
+    // Log the exact API failure for backend diagnostics without exposing it to the client
+    console.error("[KOT AI] Generation Error:", error.message);
+    throw new Error("KOT AI is currently unavailable or experiencing high traffic. Please try again.");
+  }
 }
