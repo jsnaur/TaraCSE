@@ -35,7 +35,6 @@ import { cn } from "@/lib/utils";
 import { MathText } from "@/components/ui/math-text";
 import {
   getUserMonetizationStatus,
-  decrementKotAiUsage,
   getPracticeQuestions,
   checkPracticeAnswer,
   saveAnswer,
@@ -257,7 +256,6 @@ export default function PracticePage() {
 
   // ── AI Hint & Paywall Logic ──────────────────────────────────────────────
   const handleAiHint = async () => {
-    // Check if free user has exhausted uses
     if (!isPremium && typeof aiUsesLeft === "number" && aiUsesLeft <= 0) {
       setShowAiPaywall(true);
       return;
@@ -265,31 +263,53 @@ export default function PracticePage() {
 
     setLoadingAi(true);
 
-    // If not premium, decrement usage in backend
-    if (!isPremium) {
-      const res = await decrementKotAiUsage();
-      if (res.error === "exhausted") {
+    try {
+      const res = await fetch("/api/ai/kot-ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ questionId: question.id }),
+      });
+
+      const data = await res.json();
+
+      if (res.status === 403 && data.error === "exhausted") {
         setShowAiPaywall(true);
-        setLoadingAi(false);
         return;
       }
-      if (res.success && typeof res.remaining === "number") {
-        setAiUsesLeft(res.remaining);
-      }
-    }
 
-    // Simulate AI request (Replace with real KOT API Call integration)
-    await new Promise((r) => setTimeout(r, 1400));
-    setStates((prev) => {
-      const next = [...prev];
-      next[currentIndex] = {
-        ...next[currentIndex],
-        aiHint:
-          "💡 KOT AI Breakdown: Review the context of the question carefully. Try eliminating the choices that are factually opposite to the main premise.",
-      };
-      return next;
-    });
-    setLoadingAi(false);
+      if (!res.ok) {
+        setStates((prev) => {
+          const next = [...prev];
+          next[currentIndex] = {
+            ...next[currentIndex],
+            aiHint: "KOT AI is unavailable right now. Please try again later.",
+          };
+          return next;
+        });
+        return;
+      }
+
+      setStates((prev) => {
+        const next = [...prev];
+        next[currentIndex] = { ...next[currentIndex], aiHint: data.response };
+        return next;
+      });
+
+      if (typeof data.remaining === "number") {
+        setAiUsesLeft(data.remaining);
+      }
+    } catch {
+      setStates((prev) => {
+        const next = [...prev];
+        next[currentIndex] = {
+          ...next[currentIndex],
+          aiHint: "KOT AI is unavailable right now. Please try again later.",
+        };
+        return next;
+      });
+    } finally {
+      setLoadingAi(false);
+    }
   };
 
   // ── Sidebar grid cell variant ────────────────────────────────────────────
