@@ -156,6 +156,10 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
   const [isReverting, setIsReverting] = useState(false);
   const [showRevertPanel, setShowRevertPanel] = useState(false);
 
+  // Embedding State
+  const [isEmbedding, setIsEmbedding] = useState(false);
+  const [embedResult, setEmbedResult] = useState<{ embedded: number; failed: number; remaining: number; firstError: string | null } | null>(null);
+
   useEffect(() => {
     setQuestions(initialQuestions);
   }, [initialQuestions]);
@@ -425,9 +429,52 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
     await submitIngest(synthesized);
   };
 
+  // ─── Embed Handler ───
+  const handleRunEmbedding = async () => {
+    setIsEmbedding(true);
+    setEmbedResult(null);
+
+    let totalEmbedded = 0;
+    let totalFailed = 0;
+
+    try {
+      while (true) {
+        const res = await fetch("/api/admin/embed-questions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ batchSize: 100 }),
+        });
+        const data = await res.json();
+
+        totalEmbedded += data.embedded ?? 0;
+        totalFailed += data.failed ?? 0;
+
+        setEmbedResult({
+          embedded: totalEmbedded,
+          failed: totalFailed,
+          remaining: data.remaining ?? 0,
+          firstError: data.firstError ?? null,
+        });
+
+        // Break when all done, or when this batch made zero progress (error or no questions left)
+        if ((data.remaining ?? 0) === 0 || data.embedded === 0) break;
+      }
+
+      if (totalFailed === 0) {
+        toast({ title: "Embedding Complete", description: `${totalEmbedded} questions embedded successfully.` });
+      } else {
+        toast({ title: "Embedding Finished With Errors", description: `${totalEmbedded} embedded, ${totalFailed} failed.`, variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Embedding Failed", description: "Could not reach the server.", variant: "destructive" });
+    } finally {
+      setIsEmbedding(false);
+    }
+  };
+
   return (
     <div className="space-y-7">
-      
+
       {/* ── Header ── */}
       <motion.div initial={{ opacity: 0, y: -14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
@@ -451,6 +498,63 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
         <StatCard label="Professional" value={stats.prof} icon={Database} colorClass="bg-primary/10 text-primary dark:bg-primary/15" delay={0.15} />
         <StatCard label="Subprofessional" value={stats.subprof} icon={Database} colorClass="bg-amber-100 text-amber-600 dark:bg-amber-900/40" delay={0.2} />
       </div>
+
+      {/* ── KOT AI Embedding Panel ── */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25, duration: 0.4 }} className="bg-card border border-border rounded-2xl p-5 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+              <Sparkles className="w-4 h-4 text-primary" />
+            </div>
+            <div>
+              <p className="font-heading font-bold text-sm text-foreground">KOT AI Vector Embedding</p>
+              <p className="text-xs text-muted-foreground">Generates semantic vectors for all un-embedded questions so KOT AI can find related content.</p>
+            </div>
+          </div>
+          <Button
+            onClick={handleRunEmbedding}
+            disabled={isEmbedding}
+            className="rounded-xl font-bold gap-2 shrink-0"
+          >
+            {isEmbedding ? (
+              <><Loader2 className="w-4 h-4 animate-spin" /> Embedding…</>
+            ) : (
+              <><Database className="w-4 h-4" /> Run Embedding</>
+            )}
+          </Button>
+        </div>
+
+        {/* Progress / Result */}
+        {(isEmbedding || embedResult) && (
+          <div className="rounded-xl border border-border bg-muted/40 px-4 py-3 space-y-1.5 text-sm">
+            {embedResult && (
+              <>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <span className="font-medium">{embedResult.embedded} embedded successfully</span>
+                </div>
+                {embedResult.failed > 0 && (
+                  <div className="flex items-start gap-2 text-destructive">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>{embedResult.failed} failed{embedResult.firstError ? `: ${embedResult.firstError.slice(0, 120)}` : ""}</span>
+                  </div>
+                )}
+                {embedResult.remaining > 0 ? (
+                  <p className="text-muted-foreground">{embedResult.remaining} questions still pending — click Run Embedding again to continue.</p>
+                ) : embedResult.failed === 0 ? (
+                  <p className="text-emerald-600 font-semibold">All questions are fully embedded. KOT AI RAG is active.</p>
+                ) : null}
+              </>
+            )}
+            {isEmbedding && !embedResult && (
+              <p className="text-muted-foreground">Processing batch…</p>
+            )}
+            {isEmbedding && embedResult && (
+              <p className="text-muted-foreground">Processing next batch… ({embedResult.remaining} remaining)</p>
+            )}
+          </div>
+        )}
+      </motion.div>
 
       {/* ── Main View ── */}
       <Tabs defaultValue="list" className="space-y-6">

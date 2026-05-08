@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAdminStatus } from '@/lib/admin-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { embedAndStoreQuestion } from '@/services/ai/embeddings';
 
 // --- Configuration & Security Enforcements ---
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB Limit
@@ -204,7 +205,15 @@ export async function POST(request: NextRequest) {
 
     const insertedIds = insertedData?.map(q => q.id) || [];
 
-    return NextResponse.json({ 
+    // Fire-and-forget: embed each new question asynchronously.
+    // Do not await — return the ingest success response immediately.
+    for (const id of insertedIds) {
+      embedAndStoreQuestion(id).catch((err) =>
+        console.error(`[Embed] Failed for question ${id}:`, err?.message)
+      );
+    }
+
+    return NextResponse.json({
       status: 'success', 
       message: `Successfully ingested ${newQuestionsToInsert.length} new questions. Skipped ${skippedItems.length} duplicates.`,
       inserted: newQuestionsToInsert.length,
