@@ -278,12 +278,12 @@ export default function PracticePage() {
       }
 
       if (!res.ok) {
+        const hint = process.env.NODE_ENV === "development" && data.error
+          ? `KOT AI error: ${data.error}`
+          : "KOT AI is unavailable right now. Please try again later.";
         setStates((prev) => {
           const next = [...prev];
-          next[currentIndex] = {
-            ...next[currentIndex],
-            aiHint: "KOT AI is unavailable right now. Please try again later.",
-          };
+          next[currentIndex] = { ...next[currentIndex], aiHint: hint };
           return next;
         });
         return;

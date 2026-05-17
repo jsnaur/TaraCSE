@@ -167,7 +167,7 @@ export async function POST(request: NextRequest) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[KOT AI]", message);
     return NextResponse.json(
-      { error: "An unexpected error occurred." },
+      { error: process.env.NODE_ENV === "development" ? message : "An unexpected error occurred." },
       { status: 500 }
     );
   }
