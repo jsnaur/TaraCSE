@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { LayoutDashboard, ReceiptText, Users, FileQuestion, ArrowLeft, ScrollText, BrainCircuit, Menu, X } from 'lucide-react';
+import { LayoutDashboard, ReceiptText, Users, FileQuestion, ArrowLeft, ScrollText, BrainCircuit, Menu, X, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 
@@ -12,6 +12,7 @@ const adminNavItems = [
   { href: '/admin/verifications', label: 'Verifications', icon: ReceiptText },
   { href: '/admin/users', label: 'Users', icon: Users },
   { href: '/admin/questions', label: 'Question Bank', icon: FileQuestion },
+  { href: '/admin/generate', label: 'AI Generation', icon: Sparkles },
   { href: '/admin/knowledge', label: 'Knowledge Base', icon: BrainCircuit },
   { href: '/admin/audit', label: 'Audit Log', icon: ScrollText },
 ];

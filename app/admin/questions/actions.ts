@@ -6,6 +6,13 @@ import { logAudit } from "@/lib/audit";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+export type QualityStatus = "unreviewed" | "flagged" | "approved";
+
+export interface QualityFlags {
+  codes: string[];
+  reason: string;
+}
+
 export interface Question {
   id: string;
   level: "Professional" | "Subprofessional";
@@ -16,6 +23,10 @@ export interface Question {
   explanation: string;
   is_active: boolean;
   created_at: string;
+  quality_status?: QualityStatus;
+  quality_score?: number | null;
+  quality_flags?: QualityFlags | null;
+  source?: "manual" | "ai_generated";
 }
 
 // ─── Zod Schemas for Security Validation ──────────────────────────────────────
@@ -122,12 +133,63 @@ export async function updateQuestion(id: string, question: Omit<Question, "id" |
   const validatedData = questionSchema.parse(question);
 
   const adminDb = createAdminClient();
+  // An edited question is re-queued for the AI quality scan so the audit
+  // reflects the new content rather than the stale flagged version.
   const { error } = await adminDb
     .from("questions")
-    .update(validatedData)
+    .update({
+      ...validatedData,
+      quality_status: "unreviewed",
+      quality_score: null,
+      quality_flags: [],
+    })
     .eq("id", id);
 
   if (error) throw new Error("Failed to update question");
+  revalidatePath("/admin/questions");
+}
+
+/**
+ * Marks flagged questions as approved (keeps them, clears them from the
+ * flagged list without deleting).
+ */
+export async function approveQuestions(ids: string[]) {
+  const isAdmin = await verifyAdminStatus();
+  if (!isAdmin) throw new Error("Unauthorized");
+  if (!ids || ids.length === 0) return;
+
+  const adminDb = createAdminClient();
+  const { error } = await adminDb
+    .from("questions")
+    .update({ quality_status: "approved" })
+    .in("id", ids);
+
+  if (error) throw new Error("Failed to approve questions");
+  await logAudit({
+    action_type: "question.quality.approved",
+    target_resource: "questions",
+    details: { count: ids.length, question_ids: ids },
+  });
+  revalidatePath("/admin/questions");
+}
+
+/**
+ * Hard-deletes multiple questions at once (used to clear flagged questions).
+ */
+export async function bulkDeleteQuestions(ids: string[]) {
+  const isAdmin = await verifyAdminStatus();
+  if (!isAdmin) throw new Error("Unauthorized");
+  if (!ids || ids.length === 0) return;
+
+  const adminDb = createAdminClient();
+  const { error } = await adminDb.from("questions").delete().in("id", ids);
+
+  if (error) throw new Error("Failed to delete questions");
+  await logAudit({
+    action_type: "question.bulk_deleted",
+    target_resource: "questions",
+    details: { count: ids.length, question_ids: ids },
+  });
   revalidatePath("/admin/questions");
 }
 

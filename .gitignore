@@ -52,6 +52,9 @@ CLAUDE.md
 # gitnexus
 .gitnexus/
 
+# Supabase (local migrations + CLI state — not pushed to remote)
+supabase/
+
 # Playwright
 playwright.config.ts
 playwright.config.js

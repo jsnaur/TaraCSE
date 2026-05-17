@@ -60,9 +60,12 @@ import {
   BookOpen,
   Check,
   RotateCcw,
-  ChevronDown
+  ChevronDown,
+  ShieldCheck,
+  Flag,
+  ScanLine
 } from "lucide-react";
-import { Question, toggleQuestionStatus, deleteQuestion, addQuestion, updateQuestion, revertIngestion } from "./actions";
+import { Question, toggleQuestionStatus, deleteQuestion, addQuestion, updateQuestion, revertIngestion, approveQuestions, bulkDeleteQuestions } from "./actions";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -125,10 +128,12 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
   const [activeStatus, setActiveStatus] = useState<"All" | "Active" | "Inactive">("All");
   const [activeCategory, setActiveCategory] = useState<string>("All");
   const [activeDifficulty, setActiveDifficulty] = useState<string>("All");
+  const [activeQuality, setActiveQuality] = useState<"All" | "Flagged" | "Unreviewed" | "Approved">("All");
   
   // Modals / Dialogs State
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [viewingQuestion, setViewingQuestion] = useState<Question | null>(null);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   
   // Add/Edit Drawer State
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -160,6 +165,11 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
   const [isEmbedding, setIsEmbedding] = useState(false);
   const [embedResult, setEmbedResult] = useState<{ embedded: number; failed: number; remaining: number; firstError: string | null } | null>(null);
 
+  // Quality Audit State
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanResult, setScanResult] = useState<{ reviewed: number; flagged: number; remaining: number; firstError: string | null } | null>(null);
+  const [isBulkActing, setIsBulkActing] = useState(false);
+
   useEffect(() => {
     setQuestions(initialQuestions);
   }, [initialQuestions]);
@@ -169,6 +179,8 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
     active: questions.filter(q => q.is_active).length,
     prof: questions.filter(q => q.level === "Professional").length,
     subprof: questions.filter(q => q.level === "Subprofessional").length,
+    flagged: questions.filter(q => q.quality_status === "flagged").length,
+    unreviewed: questions.filter(q => !q.quality_status || q.quality_status === "unreviewed").length,
   }), [questions]);
 
   const filtered = useMemo(() => {
@@ -182,10 +194,16 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
         (activeStatus === "Active" && item.is_active) || 
         (activeStatus === "Inactive" && !item.is_active);
       const matchesSearch = item.question_text.toLowerCase().includes(q) || item.category.toLowerCase().includes(q);
+      const qStatus = item.quality_status ?? "unreviewed";
+      const matchesQuality =
+        activeQuality === "All" ||
+        (activeQuality === "Flagged" && qStatus === "flagged") ||
+        (activeQuality === "Unreviewed" && qStatus === "unreviewed") ||
+        (activeQuality === "Approved" && qStatus === "approved");
 
-      return matchesLevel && matchesStatus && matchesCategory && matchesDifficulty && matchesSearch;
+      return matchesLevel && matchesStatus && matchesCategory && matchesDifficulty && matchesSearch && matchesQuality;
     });
-  }, [questions, search, activeLevel, activeStatus, activeCategory, activeDifficulty]);
+  }, [questions, search, activeLevel, activeStatus, activeCategory, activeDifficulty, activeQuality]);
 
   // Helper to clear all active filters
   const clearFilters = () => {
@@ -194,6 +212,7 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
     setActiveCategory("All");
     setActiveDifficulty("All");
     setActiveStatus("All");
+    setActiveQuality("All");
   };
 
   // ─── Form Handlers ───
@@ -472,6 +491,77 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
     }
   };
 
+  // ─── Quality Scan Handler ───
+  // Reviews exactly one batch per click. Running totals accumulate across
+  // clicks so the admin can pace the scan (and free-tier rate limits).
+  const handleRunQualityScan = async () => {
+    setIsScanning(true);
+
+    try {
+      const res = await fetch("/api/admin/quality-scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ batchSize: 25 }),
+      });
+      const data = await res.json();
+
+      const reviewed = data.reviewed ?? 0;
+      const flagged = data.flagged ?? 0;
+      const remaining = data.remaining ?? 0;
+
+      setScanResult((prev) => ({
+        reviewed: (prev?.reviewed ?? 0) + reviewed,
+        flagged: (prev?.flagged ?? 0) + flagged,
+        remaining,
+        firstError: data.firstError ?? null,
+      }));
+
+      toast({
+        title: remaining === 0 ? "Quality Scan Complete" : "Batch Reviewed",
+        description:
+          `${reviewed} reviewed, ${flagged} flagged this batch.` +
+          (remaining === 0 ? "" : ` ${remaining} still pending.`),
+      });
+      router.refresh();
+    } catch {
+      toast({ title: "Scan Failed", description: "Could not reach the server.", variant: "destructive" });
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  // ─── Bulk Quality Actions (operate on the currently filtered set) ───
+  const handleBulkApprove = async () => {
+    const ids = filtered.map((q) => q.id);
+    if (ids.length === 0) return;
+    setIsBulkActing(true);
+    try {
+      await approveQuestions(ids);
+      toast({ title: "Questions Approved", description: `${ids.length} questions cleared from the flagged list.` });
+      router.refresh();
+    } catch {
+      toast({ title: "Approve Failed", description: "Could not approve questions.", variant: "destructive" });
+    } finally {
+      setIsBulkActing(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = filtered.map((q) => q.id);
+    if (ids.length === 0) return;
+    setIsBulkActing(true);
+    try {
+      await bulkDeleteQuestions(ids);
+      toast({ title: "Questions Deleted", description: `${ids.length} questions removed from the bank.` });
+      setBulkDeleteOpen(false);
+      router.refresh();
+    } catch {
+      toast({ title: "Delete Failed", description: "Could not delete questions.", variant: "destructive" });
+    } finally {
+      setIsBulkActing(false);
+    }
+  };
+
   return (
     <div className="space-y-7">
 
@@ -556,6 +646,68 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
         )}
       </motion.div>
 
+      {/* ── AI Quality Audit Panel ── */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.4 }} className="bg-card border border-border rounded-2xl p-5 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center shrink-0">
+              <ShieldCheck className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div>
+              <p className="font-heading font-bold text-sm text-foreground">AI Quality Audit</p>
+              <p className="text-xs text-muted-foreground">Scans questions for vague wording, missing context, or broken answers and flags them for your review.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {stats.flagged > 0 && (
+              <Badge variant="outline" className="bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 font-bold gap-1">
+                <Flag className="w-3 h-3" /> {stats.flagged} flagged
+              </Badge>
+            )}
+            <Button onClick={handleRunQualityScan} disabled={isScanning} className="rounded-xl font-bold gap-2">
+              {isScanning ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Scanning…</>
+              ) : (
+                <><ScanLine className="w-4 h-4" /> Run Quality Scan</>
+              )}
+            </Button>
+          </div>
+        </div>
+
+        {(isScanning || scanResult) && (
+          <div className="rounded-xl border border-border bg-muted/40 px-4 py-3 space-y-1.5 text-sm">
+            {scanResult && (
+              <>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <span className="font-medium">{scanResult.reviewed} reviewed</span>
+                  {scanResult.flagged > 0 && (
+                    <span className="text-rose-600 font-medium">· {scanResult.flagged} flagged</span>
+                  )}
+                </div>
+                {scanResult.firstError && (
+                  <div className="flex items-start gap-2 text-destructive">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>{scanResult.firstError.slice(0, 140)}</span>
+                  </div>
+                )}
+                {scanResult.remaining > 0 ? (
+                  <p className="text-muted-foreground">{scanResult.remaining} questions still pending — click Run Quality Scan again to continue.</p>
+                ) : (
+                  <p className="text-emerald-600 font-semibold">All questions audited. Use the Quality filter below to review flagged items.</p>
+                )}
+              </>
+            )}
+            {isScanning && !scanResult && <p className="text-muted-foreground">Reviewing batch…</p>}
+            {isScanning && scanResult && <p className="text-muted-foreground">Reviewing next batch… ({scanResult.remaining} remaining)</p>}
+          </div>
+        )}
+
+        {stats.unreviewed > 0 && !isScanning && !scanResult && (
+          <p className="text-xs text-muted-foreground">{stats.unreviewed} question{stats.unreviewed === 1 ? "" : "s"} not yet audited.</p>
+        )}
+      </motion.div>
+
       {/* ── Main View ── */}
       <Tabs defaultValue="list" className="space-y-6">
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
@@ -623,6 +775,17 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
               <option value="Active">Active Only</option>
               <option value="Inactive">Inactive Only</option>
             </select>
+
+            <select
+              value={activeQuality}
+              onChange={(e) => setActiveQuality(e.target.value as any)}
+              className="h-10 rounded-xl bg-card border px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-ring flex-1 sm:flex-none min-w-[120px]"
+            >
+              <option value="All">All Quality</option>
+              <option value="Flagged">Flagged</option>
+              <option value="Unreviewed">Unreviewed</option>
+              <option value="Approved">Approved</option>
+            </select>
           </div>
         </div>
 
@@ -648,6 +811,25 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
               </Button>
             )}
           </div>
+
+          {/* Bulk actions toolbar — shown when filtering by Flagged */}
+          {activeQuality === "Flagged" && filtered.length > 0 && (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900 rounded-2xl px-4 py-3">
+              <p className="text-sm text-rose-700 dark:text-rose-300 font-medium flex items-center gap-2">
+                <Flag className="w-4 h-4 shrink-0" />
+                {filtered.length} flagged question{filtered.length === 1 ? "" : "s"} shown — approve to keep, or delete to remove.
+              </p>
+              <div className="flex gap-2 shrink-0">
+                <Button variant="outline" size="sm" onClick={handleBulkApprove} disabled={isBulkActing} className="rounded-xl font-bold gap-1.5 bg-card">
+                  {isBulkActing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  Approve All Shown
+                </Button>
+                <Button variant="destructive" size="sm" onClick={() => setBulkDeleteOpen(true)} disabled={isBulkActing} className="rounded-xl font-bold gap-1.5">
+                  <Trash2 className="w-4 h-4" /> Delete All Shown
+                </Button>
+              </div>
+            </div>
+          )}
 
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-card border rounded-2xl overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
@@ -684,6 +866,14 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
                             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-tighter">{item.level}</p>
                             {!item.is_active && (
                               <Badge variant="secondary" className="text-[9px] h-4 px-1.5 py-0 bg-rose-100 text-rose-600 hover:bg-rose-100 dark:bg-rose-900/30 dark:text-rose-400">Inactive</Badge>
+                            )}
+                            {item.quality_status === "flagged" && (
+                              <Badge variant="secondary" className="text-[9px] h-4 px-1.5 py-0 bg-amber-100 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400 gap-0.5">
+                                <Flag className="w-2.5 h-2.5" /> Flagged
+                              </Badge>
+                            )}
+                            {item.source === "ai_generated" && (
+                              <Badge variant="secondary" className="text-[9px] h-4 px-1.5 py-0 bg-blue-100 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400">AI</Badge>
                             )}
                           </div>
                         </TableCell>
@@ -949,6 +1139,22 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
                 <h4 className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-2">Explanation</h4>
                 <MathText text={viewingQuestion.explanation} className="text-sm text-blue-900 dark:text-blue-100" />
               </div>
+
+              {viewingQuestion.quality_status === "flagged" && viewingQuestion.quality_flags && (
+                <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded-2xl p-5 mt-4">
+                  <h4 className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <Flag className="w-3.5 h-3.5" /> Quality Flag
+                  </h4>
+                  <p className="text-sm text-amber-900 dark:text-amber-100">{viewingQuestion.quality_flags.reason}</p>
+                  {viewingQuestion.quality_flags.codes?.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-3">
+                      {viewingQuestion.quality_flags.codes.map((c) => (
+                        <code key={c} className="bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded text-[10px] font-bold">{c}</code>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           )}
         </DialogContent>
@@ -1082,6 +1288,20 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
           <AlertDialogFooter>
             <AlertDialogCancel className="rounded-2xl">Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleConfirmDelete} className="rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-bold">Confirm Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Bulk Delete Confirmation ── */}
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <AlertDialogContent className="rounded-3xl border-border max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-heading font-black">Delete {filtered.length} Questions?</AlertDialogTitle>
+            <AlertDialogDescription>All {filtered.length} questions currently shown will be permanently removed from the bank. This cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-2xl">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkDelete} className="rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-bold">Delete All</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
