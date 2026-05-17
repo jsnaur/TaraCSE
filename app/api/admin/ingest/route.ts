@@ -3,36 +3,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyAdminStatus } from '@/lib/admin-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { embedAndStoreQuestion } from '@/services/ai/embeddings';
+import { parseTsvDocument, ValidatedQuestion } from '@/lib/question-validation';
 
 // --- Configuration & Security Enforcements ---
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB Limit
-
-const VALID_LEVELS = new Set(['Professional', 'Subprofessional']);
-const VALID_CATEGORIES = new Set([
-  'Verbal Ability', 
-  'Numerical Ability', 
-  'Analytical Ability', 
-  'General Information', 
-  'Clerical Operations'
-]);
-const VALID_DIFFICULTIES = new Set(['Easy', 'Medium', 'Hard']);
-const VALID_ANSWERS = new Set(['A', 'B', 'C', 'D']);
-
-// Basic XSS Sanitization: Strips HTML tags
-function sanitizeHTML(text: string): string {
-  if (!text) return '';
-  return text.replace(/<[^>]*>?/gm, '').trim();
-}
-
-interface ParsedQuestion {
-  rowNumber: number; // Added to track skipped row details
-  level: string;
-  category: string;
-  difficulty: string;
-  question_text: string;
-  options: any; // JSONB array
-  explanation: string;
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -61,86 +35,13 @@ export async function POST(request: NextRequest) {
 
     // Phase 2: Memory Parsing & Validation (Dry Run)
     const lines = fileText.split('\n').filter(line => line.trim() !== '');
-    
+
     if (lines.length < 2) {
       return NextResponse.json({ error: 'File contains no data rows.' }, { status: 400 });
     }
 
-    // Skip the header row
-    const dataLines = lines.slice(1);
-    
-    const errors: { row: number; issues: string[] }[] = [];
-    const validRows: ParsedQuestion[] = [];
-
-    dataLines.forEach((line, index) => {
-      const rowNumber = index + 2; 
-      const columns = line.split('\t').map(col => col.trim());
-      const rowErrors: string[] = [];
-
-      // Expected format: level | category | difficulty | question_text | option_a | option_b | option_c | option_d | correct_answer | explanation
-      if (columns.length < 10) {
-        errors.push({ row: rowNumber, issues: ['Incomplete row. Missing required columns (Needs 10 columns).'] });
-        return; 
-      }
-
-      const [
-        rawLevel, 
-        rawCategory, 
-        rawDifficulty, 
-        rawQuestionText, 
-        rawOptA, 
-        rawOptB, 
-        rawOptC, 
-        rawOptD, 
-        rawCorrect, 
-        rawExplanation
-      ] = columns;
-
-      // 1. Enum Validations
-      if (!VALID_LEVELS.has(rawLevel)) rowErrors.push(`Invalid Level: '${rawLevel}'`);
-      if (!VALID_CATEGORIES.has(rawCategory)) rowErrors.push(`Invalid Category: '${rawCategory}'`);
-      if (!VALID_DIFFICULTIES.has(rawDifficulty)) rowErrors.push(`Invalid Difficulty: '${rawDifficulty}'`);
-
-      // 2. Text Validations & Sanitization
-      const sanitizedQuestion = sanitizeHTML(rawQuestionText);
-      const sanitizedExplanation = sanitizeHTML(rawExplanation);
-      const cleanCorrect = rawCorrect.toUpperCase();
-
-      if (!sanitizedQuestion) rowErrors.push('Question text is missing.');
-      if (!sanitizedExplanation) rowErrors.push('Explanation text is missing.');
-      if (!VALID_ANSWERS.has(cleanCorrect)) rowErrors.push(`Invalid Correct Answer: '${rawCorrect}'. Must be A, B, C, or D.`);
-
-      // 3. Build & Validate the JSONB Options Array
-      const optA = sanitizeHTML(rawOptA);
-      const optB = sanitizeHTML(rawOptB);
-      const optC = sanitizeHTML(rawOptC);
-      const optD = sanitizeHTML(rawOptD);
-
-      if (!optA || !optB || !optC || !optD) {
-        rowErrors.push('One or more options (A, B, C, or D) are missing text.');
-      }
-
-      const parsedOptions = [
-        { text: optA, is_correct: cleanCorrect === 'A' },
-        { text: optB, is_correct: cleanCorrect === 'B' },
-        { text: optC, is_correct: cleanCorrect === 'C' },
-        { text: optD, is_correct: cleanCorrect === 'D' },
-      ];
-
-      if (rowErrors.length > 0) {
-        errors.push({ row: rowNumber, issues: rowErrors });
-      } else {
-        validRows.push({
-          rowNumber,
-          level: rawLevel,
-          category: rawCategory,
-          difficulty: rawDifficulty,
-          question_text: sanitizedQuestion,
-          options: parsedOptions,
-          explanation: sanitizedExplanation,
-        });
-      }
-    });
+    // Shared parser — identical rules to the AI generation pipeline.
+    const { validRows, errors } = parseTsvDocument(fileText);
 
     // Phase 3: Transactional Integrity
     if (errors.length > 0) {
@@ -166,7 +67,7 @@ export async function POST(request: NextRequest) {
       existingQuestions.map(q => `${q.category}|${q.question_text}`)
     );
 
-    const newQuestionsToInsert: Omit<ParsedQuestion, 'rowNumber'>[] = [];
+    const newQuestionsToInsert: ValidatedQuestion[] = [];
     const skippedItems: { row: number; question_text: string; category: string }[] = [];
 
     validRows.forEach(row => {
