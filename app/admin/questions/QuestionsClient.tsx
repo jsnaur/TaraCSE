@@ -98,6 +98,14 @@ const sanitizeForExport = (text: string) => {
   return `"${safeText}"`;
 };
 
+// Gemini SDK errors carry a long boilerplate prefix
+// ("[GoogleGenerativeAI Error]: Error fetching from https://…:generateContent: ")
+// that buries the actual status/reason. Strip it so the cause stays visible.
+const formatAiError = (msg: string) => {
+  if (!msg) return "";
+  return msg.replace(/^\[GoogleGenerativeAI Error\][^[]*?generateContent:\s*/i, "").trim();
+};
+
 type QuestionFormData = Omit<Question, "id" | "created_at" | "is_active">;
 
 const defaultFormState: QuestionFormData = {
@@ -688,7 +696,7 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
                 {scanResult.firstError && (
                   <div className="flex items-start gap-2 text-destructive">
                     <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                    <span>{scanResult.firstError.slice(0, 140)}</span>
+                    <span className="break-words">{formatAiError(scanResult.firstError)}</span>
                   </div>
                 )}
                 {scanResult.remaining > 0 ? (
