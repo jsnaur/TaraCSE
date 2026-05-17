@@ -509,7 +509,7 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
       const res = await fetch("/api/admin/quality-scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ batchSize: 25 }),
+        body: JSON.stringify({ batchSize:30 }), // Scan 30 questions per batch to balance speed vs rate limits
       });
       const data = await res.json();
 
