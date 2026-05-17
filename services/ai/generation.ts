@@ -221,7 +221,10 @@ export async function generateQuestions(
     model: "gemini-2.5-flash",
     generationConfig: {
       temperature: 0.85,
-      maxOutputTokens: 8192,
+      // Must cover thinking tokens + every question's JSON. A 30-question
+      // batch easily exceeds 8192 and truncates the JSON mid-array, so the
+      // cap is set high enough for the largest batch we generate.
+      maxOutputTokens: 32768,
       responseMimeType: "application/json",
       responseSchema: generationSchema,
     },

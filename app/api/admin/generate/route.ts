@@ -5,7 +5,7 @@ import { generateQuestions, targetBuckets, DiscoveredStyle } from "@/services/ai
 import { embedText, buildEmbeddableText } from "@/services/ai/embeddings";
 import { reviewQuestionBatch, QuestionForReview } from "@/services/ai/quality";
 
-const BATCH_SIZE = 10;       // questions generated per call
+const BATCH_SIZE = 30;       // questions generated per call
 const DEDUP_THRESHOLD = 0.9; // cosine similarity above which a candidate is a duplicate
 
 // Generates one batch for the most-under-target bucket per call. The client

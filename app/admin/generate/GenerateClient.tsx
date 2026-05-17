@@ -301,7 +301,7 @@ export default function GenerateClient({
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
                 <h3 className="font-heading font-black text-lg flex items-center gap-2"><Sparkles className="w-5 h-5 text-primary" /> Generate Questions</h3>
-                <p className="text-sm text-muted-foreground mt-0.5">Each batch fills the most-under-target bucket with up to 10 questions, auto-checked and queued for review.</p>
+                <p className="text-sm text-muted-foreground mt-0.5">Each batch fills the most-under-target bucket with up to 30 questions, auto-checked and queued for review.</p>
               </div>
               <div className="flex gap-2 shrink-0">
                 {isGenerating ? (
