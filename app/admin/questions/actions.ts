@@ -82,7 +82,8 @@ export async function toggleQuestionStatus(id: string, currentStatus: boolean) {
 }
 
 /**
- * Deletes a question (Soft delete recommended, but this performs a hard delete)
+ * Hard-deletes a question. Its student history (user_responses, bookmarks)
+ * is removed too via ON DELETE CASCADE — see migration 0002.
  */
 export async function deleteQuestion(id: string) {
   const isAdmin = await verifyAdminStatus();
