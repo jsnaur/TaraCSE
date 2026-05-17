@@ -71,6 +71,7 @@ export async function POST(request: NextRequest) {
     }
   } catch (err: unknown) {
     firstError = err instanceof Error ? err.message : String(err);
+    console.error("[Quality Scan] Batch review failed:", firstError);
   }
 
   const { count } = await supabase
