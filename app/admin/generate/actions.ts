@@ -82,16 +82,29 @@ export async function fetchGenerationStats(): Promise<GenerationStats> {
 
   const adminDb = createAdminClient();
 
-  const { data: rows, error } = await adminDb
-    .from("questions")
-    .select("level, category, difficulty");
-  if (error) throw new Error("Failed to fetch question counts");
-
+  // Tally every question per (level, category, difficulty) bucket. Rows are
+  // paged because Supabase caps a single API response at its `max-rows` limit
+  // (1000 by default) — a plain .limit(10000) is silently clamped to that cap,
+  // so the buckets would only ever see the first page and undercount the bank.
+  const PAGE = 1000;
   const counts = new Map<string, number>();
-  for (const r of rows ?? []) {
-    const key = `${r.level}|${r.category}|${r.difficulty}`;
-    counts.set(key, (counts.get(key) ?? 0) + 1);
+  for (let from = 0; from < 200_000; from += PAGE) {
+    const { data: rows, error } = await adminDb
+      .from("questions")
+      .select("level, category, difficulty")
+      .order("id")
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error("Failed to fetch question counts");
+    if (!rows || rows.length === 0) break;
+    for (const r of rows) {
+      const key = `${r.level}|${r.category}|${r.difficulty}`;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
   }
+
+  const { count: totalCount } = await adminDb
+    .from("questions")
+    .select("*", { count: "exact", head: true });
 
   const buckets: BucketStat[] = targetBuckets().map((b) => ({
     ...b,
@@ -99,7 +112,7 @@ export async function fetchGenerationStats(): Promise<GenerationStats> {
   }));
 
   const totalTarget = buckets.reduce((sum, b) => sum + b.target, 0);
-  const totalCurrent = rows?.length ?? 0;
+  const totalCurrent = totalCount ?? 0;
 
   const { count: reviewQueueCount } = await adminDb
     .from("questions")

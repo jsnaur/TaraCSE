@@ -55,17 +55,26 @@ export async function POST(request: NextRequest) {
     // Phase 4: Anti-Duplication Strategy
     const supabaseAdmin = createAdminClient();
     
-    const { data: existingQuestions, error: fetchError } = await supabaseAdmin
-      .from('questions')
-      .select('question_text, category');
+    // Paged read: Supabase caps a single API response at its `max-rows` limit
+    // (1000 by default), so a plain .limit() would only de-duplicate against
+    // the first page and let dupes through once the bank exceeds it.
+    const PAGE = 1000;
+    const existingSet = new Set<string>();
+    for (let from = 0; from < 200_000; from += PAGE) {
+      const { data: existingQuestions, error: fetchError } = await supabaseAdmin
+        .from('questions')
+        .select('question_text, category')
+        .order('id')
+        .range(from, from + PAGE - 1);
 
-    if (fetchError) {
-      return NextResponse.json({ error: 'Database check for duplicates failed.' }, { status: 500 });
+      if (fetchError) {
+        return NextResponse.json({ error: 'Database check for duplicates failed.' }, { status: 500 });
+      }
+      if (!existingQuestions || existingQuestions.length === 0) break;
+      for (const q of existingQuestions) {
+        existingSet.add(`${q.category}|${q.question_text}`);
+      }
     }
-
-    const existingSet = new Set(
-      existingQuestions.map(q => `${q.category}|${q.question_text}`)
-    );
 
     const newQuestionsToInsert: ValidatedQuestion[] = [];
     const skippedItems: { row: number; question_text: string; category: string }[] = [];
