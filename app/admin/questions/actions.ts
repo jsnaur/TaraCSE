@@ -55,13 +55,25 @@ export async function fetchQuestions(): Promise<Question[]> {
   if (!isAdmin) throw new Error("Unauthorized");
 
   const adminDb = createAdminClient();
-  const { data, error } = await adminDb
-    .from("questions")
-    .select("*")
-    .order("created_at", { ascending: false });
 
-  if (error) throw new Error("Failed to fetch questions");
-  return data as Question[];
+  // Paged read: Supabase caps a single API response at its `max-rows` limit
+  // (1000 by default), so a plain .limit() silently drops every question past
+  // the first page once the bank grows beyond it.
+  const PAGE = 1000;
+  const all: Question[] = [];
+  for (let from = 0; from < 200_000; from += PAGE) {
+    const { data, error } = await adminDb
+      .from("questions")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .order("id")
+      .range(from, from + PAGE - 1);
+
+    if (error) throw new Error("Failed to fetch questions");
+    if (!data || data.length === 0) break;
+    all.push(...(data as Question[]));
+  }
+  return all;
 }
 
 /**
