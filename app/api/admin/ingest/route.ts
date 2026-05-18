@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     for (let from = 0; from < 200_000; from += PAGE) {
       const { data: existingQuestions, error: fetchError } = await supabaseAdmin
         .from('questions')
-        .select('question_text, category')
+        .select('question_text, category, level')
         .order('id')
         .range(from, from + PAGE - 1);
 
@@ -72,7 +72,9 @@ export async function POST(request: NextRequest) {
       }
       if (!existingQuestions || existingQuestions.length === 0) break;
       for (const q of existingQuestions) {
-        existingSet.add(`${q.category}|${q.question_text}`);
+        // Key includes level: Professional and Subprofessional are independent
+        // banks, so identical text in different levels is not a duplicate.
+        existingSet.add(`${q.level}|${q.category}|${q.question_text}`);
       }
     }
 
@@ -80,13 +82,17 @@ export async function POST(request: NextRequest) {
     const skippedItems: { row: number; question_text: string; category: string }[] = [];
 
     validRows.forEach(row => {
-      if (existingSet.has(`${row.category}|${row.question_text}`)) {
+      const key = `${row.level}|${row.category}|${row.question_text}`;
+      if (existingSet.has(key)) {
         skippedItems.push({
           row: row.rowNumber,
           question_text: row.question_text,
           category: row.category
         });
       } else {
+        // Add the key so a later identical row in the SAME file is caught as a
+        // duplicate too — not just rows that collide with the existing bank.
+        existingSet.add(key);
         const { rowNumber, ...dbRow } = row; // Strip rowNumber before database insertion
         newQuestionsToInsert.push(dbRow);
       }
