@@ -463,18 +463,20 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
 
     let totalEmbedded = 0;
     let totalFailed = 0;
+    let lastError: string | null = null;
 
     try {
       while (true) {
         const res = await fetch("/api/admin/embed-questions", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ batchSize: 100 }),
+          body: JSON.stringify({ batchSize: 20 }),
         });
         const data = await res.json();
 
         totalEmbedded += data.embedded ?? 0;
         totalFailed += data.failed ?? 0;
+        if (data.firstError) lastError = data.firstError;
 
         setEmbedResult({
           embedded: totalEmbedded,
@@ -483,12 +485,20 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
           firstError: data.firstError ?? null,
         });
 
-        // Break when all done, or when this batch made zero progress (error or no questions left)
-        if ((data.remaining ?? 0) === 0 || data.embedded === 0) break;
+        // Break when all done, when this batch made zero progress (error or no
+        // questions left), or once every API key has hit its daily quota.
+        if (
+          (data.remaining ?? 0) === 0 ||
+          data.embedded === 0 ||
+          (typeof data.firstError === "string" && data.firstError.includes("daily limit"))
+        )
+          break;
       }
 
-      if (totalFailed === 0) {
+      if (totalFailed === 0 && !lastError) {
         toast({ title: "Embedding Complete", description: `${totalEmbedded} questions embedded successfully.` });
+      } else if (totalFailed === 0 && lastError) {
+        toast({ title: "Embedding Paused", description: `${totalEmbedded} embedded. Daily API quota reached — see details.`, variant: "destructive" });
       } else {
         toast({ title: "Embedding Finished With Errors", description: `${totalEmbedded} embedded, ${totalFailed} failed.`, variant: "destructive" });
       }
@@ -635,6 +645,12 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
                   <div className="flex items-start gap-2 text-destructive">
                     <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                     <span>{embedResult.failed} failed{embedResult.firstError ? `: ${embedResult.firstError.slice(0, 120)}` : ""}</span>
+                  </div>
+                )}
+                {embedResult.failed === 0 && embedResult.firstError && (
+                  <div className="flex items-start gap-2 text-amber-600">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span className="break-words">{embedResult.firstError}</span>
                   </div>
                 )}
                 {embedResult.remaining > 0 ? (
