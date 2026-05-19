@@ -571,20 +571,30 @@ export async function getResumeSessionData(practiceId: string) {
 
   let unansweredQuestions: any[] = [];
   if (remainingCount > 0 && profile?.exam_category) {
-    let query = adminAuthClient
-      .from("questions")
-      .select("id, question_text, options, category")
-      .eq("level", profile.exam_category)
-      .in("category", session.categories as string[])
-      .eq("is_active", true)
-      .limit(remainingCount + answeredIds.length + 10);
+    // Pull the remainder through the SAME randomized RPC the fresh-session
+    // path uses, so a resumed session is shuffled and quality-filtered
+    // identically. The previous plain SELECT returned rows in arbitrary,
+    // deterministic order — defeating randomization on resume.
+    //
+    // Over-fetch by answeredIds.length: the RPC samples the whole pool, so
+    // already-answered questions can appear in the sample. Requesting
+    // remainingCount + answeredIds.length guarantees enough unseen rows
+    // survive the filter below (capped by pool size).
+    const resumeDifficulty = z
+      .enum(["Easy", "Medium", "Hard", "Mixed"])
+      .safeParse(session.difficulty);
 
-    if (session.difficulty !== "Mixed") {
-      query = query.eq("difficulty", session.difficulty);
-    }
+    const { data: pool } = await adminAuthClient.rpc(
+      "get_random_practice_questions",
+      {
+        p_level: profile.exam_category,
+        p_categories: session.categories,
+        p_difficulty: resumeDifficulty.success ? resumeDifficulty.data : "Mixed",
+        p_limit: remainingCount + answeredIds.length,
+      },
+    );
 
-    const { data: fetched } = await query;
-    unansweredQuestions = ((fetched ?? []) as any[])
+    unansweredQuestions = ((pool ?? []) as any[])
       .filter((q: any) => !answeredIds.includes(q.id))
       .slice(0, remainingCount);
   }
