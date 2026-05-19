@@ -27,7 +27,6 @@ import {
   saveAnswer,
   completeSession,
   getUserMonetizationStatus,
-  decrementKotAiUsage,
 } from "../../actions";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -219,45 +218,60 @@ export default function ResumeSessionPage() {
   // ── KOT AI ──────────────────────────────────────────────────────────────
 
   async function handleAiHint() {
-    if (!isPremium) {
-      if (aiUsesLeft === 0) {
-        setShowAiPaywall(true);
-        return;
-      }
-      const dec = await decrementKotAiUsage();
-      if ("error" in dec && dec.error === "exhausted") {
-        setShowAiPaywall(true);
-        return;
-      }
-      if (!("error" in dec)) {
-        setAiUsesLeft(
-          dec.remaining === "unlimited"
-            ? "unlimited"
-            : typeof dec.remaining === "number"
-            ? dec.remaining
-            : 0
-        );
-      }
+    const s = states[currentIndex];
+    if (!s || s.aiHint || loadingAi) return;
+
+    if (!isPremium && typeof aiUsesLeft === "number" && aiUsesLeft <= 0) {
+      setShowAiPaywall(true);
+      return;
     }
 
     setLoadingAi(true);
-    await new Promise((r) => setTimeout(r, 1400));
-    setLoadingAi(false);
+    try {
+      const res = await fetch("/api/ai/kot-ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ questionId: questions[currentIndex].id }),
+      });
 
-    const s = states[currentIndex];
-    const isCorrect = s.selectedId === s.correctId;
-    setStates((prev) =>
-      prev.map((st, i) =>
-        i === currentIndex
-          ? {
-              ...st,
-              aiHint: isCorrect
-                ? `Great job! Keep applying this logic for similar "${questions[currentIndex].category}" questions in the actual exam.`
-                : `The correct answer is (${s.correctId?.toUpperCase()}). ${s.explanation ? "Re-read the explanation above — it explains the key concept you'll need to remember." : "Review this topic and try similar questions to reinforce the pattern."}`,
-            }
-          : st
-      )
-    );
+      const data = await res.json();
+
+      if (res.status === 403 && data.error === "exhausted") {
+        setShowAiPaywall(true);
+        return;
+      }
+
+      const hint =
+        res.ok && typeof data.response === "string"
+          ? data.response
+          : process.env.NODE_ENV === "development" && data.error
+          ? `KOT AI error: ${data.error}`
+          : "KOT AI is unavailable right now. Please try again later.";
+
+      setStates((prev) =>
+        prev.map((st, i) =>
+          i === currentIndex ? { ...st, aiHint: hint } : st
+        )
+      );
+
+      if (res.ok && typeof data.remaining === "number") {
+        setAiUsesLeft(data.remaining);
+      }
+    } catch {
+      setStates((prev) =>
+        prev.map((st, i) =>
+          i === currentIndex
+            ? {
+                ...st,
+                aiHint:
+                  "KOT AI is unavailable right now. Please try again later.",
+              }
+            : st
+        )
+      );
+    } finally {
+      setLoadingAi(false);
+    }
   }
 
   // ── Complete session ─────────────────────────────────────────────────────
@@ -762,7 +776,9 @@ export default function ResumeSessionPage() {
                           KOT AI
                         </span>
                       </div>
-                      {s.aiHint}
+                      <p className="whitespace-pre-line leading-relaxed">
+                        {s.aiHint}
+                      </p>
                     </div>
                   )}
                 </motion.div>

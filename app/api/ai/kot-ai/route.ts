@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { embedText, buildEmbeddableText } from "@/services/ai/embeddings";
-import { getKotAiResponse } from "@/services/ai/gemini";
+import {
+  resolveKotAiExplanation,
+  KOT_AI_QUESTION_COLUMNS,
+} from "@/services/ai/kot-ai";
 
 // ── In-memory rate limiter ──────────────────────────────────────────────────
 // 10 requests per user per minute. Resets on cold start — acceptable for
@@ -97,7 +99,7 @@ export async function POST(request: NextRequest) {
     // ── 5. Fetch question ───────────────────────────────────────────────────
     const { data: question, error: questionError } = await adminClient
       .from("questions")
-      .select("id, question_text, explanation, category, options, embedding")
+      .select(KOT_AI_QUESTION_COLUMNS)
       .eq("id", questionId)
       .eq("is_active", true)
       .single();
@@ -106,51 +108,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Question not found" }, { status: 404 });
     }
 
-    // ── 6. Get embedding for similarity search ──────────────────────────────
-    let queryEmbedding: number[];
-    if (question.embedding) {
-      queryEmbedding = question.embedding;
-    } else {
-      queryEmbedding = await embedText(
-        buildEmbeddableText({
-          question_text: question.question_text,
-          explanation: question.explanation,
-          category: question.category,
-        })
-      );
-    }
+    // ── 6. Resolve the explanation ──────────────────────────────────────────
+    // Cache hit returns instantly; a miss runs the RAG pipeline and persists
+    // the result. CSE questions are immutable, so a generated explanation is
+    // valid forever — updateQuestion() clears the cache on any admin edit, so
+    // a stale explanation can never be served.
+    const aiResponse = await resolveKotAiExplanation(question);
 
-    // ── 7. Similarity search via RAG retrieval ──────────────────────────────
-    // Uses supabaseAuth (authenticated role) because match_questions is
-    // GRANTED TO authenticated only — not to service_role.
-    const { data: similar } = await supabaseAuth.rpc("match_questions", {
-      query_embedding: queryEmbedding,
-      match_count: 4,
-      match_threshold: 0.4,
-    });
-
-    const retrievedContext = ((similar as any[]) || [])
-      .filter((s) => s.id !== questionId)
-      .slice(0, 3);
-
-    // ── 8. Find correct answer text ─────────────────────────────────────────
-    const correctOption = (
-      question.options as { text: string; is_correct: boolean }[]
-    )?.find((o) => o.is_correct);
-
-    // ── 9. Generate RAG response ────────────────────────────────────────────
-    const aiResponse = await getKotAiResponse({
-      currentQuestion: {
-        id: question.id,
-        text: question.question_text,
-        category: question.category,
-        explanation: question.explanation,
-        correctAnswerText: correctOption?.text ?? "N/A",
-      },
-      retrievedContext,
-    });
-
-    // ── 10. Decrement usage for free users ──────────────────────────────────
+    // ── 7. Decrement usage for free users ───────────────────────────────────
+    // Runs on both cache hit and miss: the 3 free uses gate the premium
+    // FEATURE, independent of whether an API call was actually made.
     let remaining: number | "unlimited" = "unlimited";
 
     if (!profile.is_premium) {

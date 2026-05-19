@@ -626,39 +626,3 @@ export async function getResumeSessionData(practiceId: string) {
     },
   };
 }
-
-export async function decrementKotAiUsage() {
-  const authContext = await getAuthUser();
-  if (!authContext) return { error: "Not authenticated" };
-
-  const adminAuthClient = createClient(supabaseUrl, supabaseServiceKey);
-
-  // Fetch current status
-  const { data: profile, error: fetchError } = await adminAuthClient
-    .from("profiles")
-    .select("is_premium, free_kot_ai_uses_remaining")
-    .eq("id", authContext.user.id)
-    .single();
-
-  if (fetchError || !profile) return { error: "Could not fetch profile" };
-
-  // If premium, no decrement needed
-  if (profile.is_premium) return { success: true, remaining: "unlimited" };
-
-  // Check if they are out of uses
-  if (profile.free_kot_ai_uses_remaining <= 0) {
-    return { error: "exhausted" };
-  }
-
-  const newRemaining = profile.free_kot_ai_uses_remaining - 1;
-
-  // Deduct one use
-  const { error: updateError } = await adminAuthClient
-    .from("profiles")
-    .update({ free_kot_ai_uses_remaining: newRemaining })
-    .eq("id", authContext.user.id);
-
-  if (updateError) return { error: updateError.message };
-
-  return { success: true, remaining: newRemaining };
-}

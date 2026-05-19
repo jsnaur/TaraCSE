@@ -63,7 +63,8 @@ import {
   ChevronDown,
   ShieldCheck,
   Flag,
-  ScanLine
+  ScanLine,
+  Zap
 } from "lucide-react";
 import { Question, toggleQuestionStatus, deleteQuestion, addQuestion, updateQuestion, revertIngestion, approveQuestions, bulkDeleteQuestions } from "./actions";
 
@@ -177,6 +178,10 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState<{ reviewed: number; flagged: number; remaining: number; firstError: string | null } | null>(null);
   const [isBulkActing, setIsBulkActing] = useState(false);
+
+  // KOT AI Pre-warm State
+  const [isPrewarming, setIsPrewarming] = useState(false);
+  const [prewarmResult, setPrewarmResult] = useState<{ generated: number; failed: number; remaining: number; quotaReached: boolean; firstError: string | null } | null>(null);
 
   useEffect(() => {
     setQuestions(initialQuestions);
@@ -548,6 +553,79 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
     }
   };
 
+  // ─── KOT AI Pre-warm Handler ───
+  // One click pre-warms up to PREWARM_RUN_LIMIT questions, then STOPS — the
+  // admin clicks again to continue. The run is split into small server
+  // batches so each request stays well under the 60s serverless ceiling
+  // (15 questions in one request would time out).
+  const PREWARM_RUN_LIMIT = 15;
+  const PREWARM_BATCH_SIZE = 5;
+
+  const handleRunPrewarm = async () => {
+    setIsPrewarming(true);
+    setPrewarmResult(null);
+
+    let totalGenerated = 0;
+    let totalFailed = 0;
+    let lastRemaining = 0;
+    let lastError: string | null = null;
+    let quotaReached = false;
+
+    try {
+      // Loop server batches until this run has processed PREWARM_RUN_LIMIT
+      // questions — or an earlier stop condition fires.
+      while (totalGenerated + totalFailed < PREWARM_RUN_LIMIT) {
+        const res = await fetch("/api/admin/prewarm-kot-ai", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ batchSize: PREWARM_BATCH_SIZE }),
+        });
+        const data = await res.json();
+
+        totalGenerated += data.generated ?? 0;
+        totalFailed += data.failed ?? 0;
+        lastRemaining = data.remaining ?? 0;
+        if (data.firstError) lastError = data.firstError;
+        quotaReached = data.quotaReached ?? false;
+
+        setPrewarmResult({
+          generated: totalGenerated,
+          failed: totalFailed,
+          remaining: lastRemaining,
+          quotaReached,
+          firstError: data.firstError ?? null,
+        });
+
+        // Stop early on: HTTP error, backlog drained, daily quota reached, or
+        // a batch that cached nothing (no forward progress — avoids re-looping
+        // the same failing questions forever).
+        if (
+          !res.ok ||
+          lastRemaining === 0 ||
+          quotaReached ||
+          (data.generated ?? 0) === 0
+        )
+          break;
+      }
+
+      if (quotaReached) {
+        toast({ title: "Pre-warm Paused", description: `${totalGenerated} cached. Gemini daily quota reached — resume tomorrow.`, variant: "destructive" });
+      } else if (totalGenerated === 0 && lastError) {
+        toast({ title: "Pre-warm Failed", description: lastError.slice(0, 120), variant: "destructive" });
+      } else if (totalFailed > 0) {
+        toast({ title: "Pre-warm Finished With Errors", description: `${totalGenerated} cached, ${totalFailed} failed. ${lastRemaining} still pending.`, variant: "destructive" });
+      } else if (lastRemaining > 0) {
+        toast({ title: "Batch Done", description: `${totalGenerated} explanation${totalGenerated === 1 ? "" : "s"} cached. ${lastRemaining} still pending — click again to continue.` });
+      } else {
+        toast({ title: "Pre-warm Complete", description: `All questions cached. ${totalGenerated} generated this run.` });
+      }
+    } catch {
+      toast({ title: "Pre-warm Failed", description: "Could not reach the server.", variant: "destructive" });
+    } finally {
+      setIsPrewarming(false);
+    }
+  };
+
   // ─── Bulk Quality Actions (operate on the currently filtered set) ───
   const handleBulkApprove = async () => {
     const ids = filtered.map((q) => q.id);
@@ -729,6 +807,74 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
 
         {stats.unreviewed > 0 && !isScanning && !scanResult && (
           <p className="text-xs text-muted-foreground">{stats.unreviewed} question{stats.unreviewed === 1 ? "" : "s"} not yet audited.</p>
+        )}
+      </motion.div>
+
+      {/* ── KOT AI Pre-warm Panel ── */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35, duration: 0.4 }} className="bg-card border border-border rounded-2xl p-5 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center shrink-0">
+              <Zap className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+            </div>
+            <div>
+              <p className="font-heading font-bold text-sm text-foreground">KOT AI Pre-warm</p>
+              <p className="text-xs text-muted-foreground">Generates and permanently caches a KOT AI explanation for un-cached questions. Processes 15 per click — click again to continue until the bank is fully covered.</p>
+            </div>
+          </div>
+          <Button
+            onClick={handleRunPrewarm}
+            disabled={isPrewarming}
+            className="rounded-xl font-bold gap-2 shrink-0"
+          >
+            {isPrewarming ? (
+              <><Loader2 className="w-4 h-4 animate-spin" /> Pre-warming…</>
+            ) : (
+              <><Zap className="w-4 h-4" /> Run Pre-warm</>
+            )}
+          </Button>
+        </div>
+
+        {/* Progress / Result */}
+        {(isPrewarming || prewarmResult) && (
+          <div className="rounded-xl border border-border bg-muted/40 px-4 py-3 space-y-1.5 text-sm">
+            {prewarmResult && (
+              <>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <span className="font-medium">{prewarmResult.generated} explanation{prewarmResult.generated === 1 ? "" : "s"} cached</span>
+                </div>
+                {prewarmResult.failed > 0 && (
+                  <div className="flex items-start gap-2 text-destructive">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>{prewarmResult.failed} failed{prewarmResult.firstError ? `: ${prewarmResult.firstError.slice(0, 120)}` : ""}</span>
+                  </div>
+                )}
+                {prewarmResult.failed === 0 && prewarmResult.firstError && (
+                  <div className="flex items-start gap-2 text-amber-600">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span className="break-words">{prewarmResult.firstError}</span>
+                  </div>
+                )}
+                {prewarmResult.remaining > 0 ? (
+                  <p className="text-muted-foreground">
+                    {prewarmResult.remaining} question{prewarmResult.remaining === 1 ? "" : "s"} still un-cached
+                    {prewarmResult.quotaReached
+                      ? " — Gemini daily quota reached. Click Run Pre-warm again after it resets."
+                      : " — click Run Pre-warm again to continue."}
+                  </p>
+                ) : (
+                  <p className="text-emerald-600 font-semibold">All questions are cached. KOT AI now runs at zero API cost.</p>
+                )}
+              </>
+            )}
+            {isPrewarming && !prewarmResult && (
+              <p className="text-muted-foreground">Processing batch… (each explanation is rate-limited, ~5s)</p>
+            )}
+            {isPrewarming && prewarmResult && (
+              <p className="text-muted-foreground">Processing next batch… ({prewarmResult.remaining} remaining)</p>
+            )}
+          </div>
         )}
       </motion.div>
 

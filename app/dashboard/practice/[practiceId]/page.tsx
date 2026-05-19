@@ -615,8 +615,17 @@ export default function PracticePage() {
                                 borderColor: "var(--spark-ai-border)",
                               }}
                             >
+                              <div
+                                className="flex items-center gap-1.5 mb-1.5"
+                                style={{ color: "var(--spark-ai-text)" }}
+                              >
+                                <Sparkles size={12} />
+                                <span className="text-xs font-bold uppercase tracking-wider">
+                                  KOT AI
+                                </span>
+                              </div>
                               <p
-                                className="text-sm font-medium leading-relaxed"
+                                className="text-sm font-medium leading-relaxed whitespace-pre-line"
                                 style={{ color: "var(--spark-ai-text)" }}
                               >
                                 {currentState.aiHint}

@@ -148,6 +148,8 @@ export async function updateQuestion(id: string, question: Omit<Question, "id" |
   const adminDb = createAdminClient();
   // An edited question is re-queued for the AI quality scan so the audit
   // reflects the new content rather than the stale flagged version.
+  // The cached KOT AI explanation is also cleared — it described the old
+  // content and would be stale; the next user request regenerates it.
   const { error } = await adminDb
     .from("questions")
     .update({
@@ -155,6 +157,8 @@ export async function updateQuestion(id: string, question: Omit<Question, "id" |
       quality_status: "unreviewed",
       quality_score: null,
       quality_flags: [],
+      kot_ai_explanation: null,
+      kot_ai_generated_at: null,
     })
     .eq("id", id);
 
