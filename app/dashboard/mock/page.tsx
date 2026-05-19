@@ -27,6 +27,9 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { getUserStats } from "@/lib/analytics/server";
+import { CSE_PASSING_SCORE } from "@/lib/analytics/config";
+import type { ReadinessBreakdownItem } from "@/lib/analytics/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -42,18 +45,19 @@ type ExamSession = {
   exam_type: "diagnostic" | "full_prof" | "full_subprof" | null;
 };
 
-// ─── Static Mock Data for Readiness Ring (Until Backend is Built) ─────────────
-
-const READINESS = {
-  score: 67,
-  label: "Developing",
-  verdict: "You're making progress, but key areas need reinforcement before exam day.",
-  breakdown: [
-    { area: "Verbal Ability", pct: 82, weight: 30 },
-    { area: "Numerical Ability", pct: 55, weight: 25 },
-    { area: "Analytical Ability", pct: 70, weight: 25 },
-    { area: "General Information", pct: 61, weight: 20 },
-  ],
+/** A past attempt projected into the shape the UI rows consume. */
+type Attempt = {
+  id: string;
+  date: string;
+  level: string;
+  score: number;   // percentage, 0-100
+  passing: number; // percentage threshold
+  timeUsed: string;
+  totalTime: string;
+  correct: number;
+  total: number;
+  trend: "up" | "down" | "neutral";
+  delta: number;
 };
 
 // ─── Subcomponents ────────────────────────────────────────────────────────────
@@ -136,11 +140,11 @@ function BreakdownBar({ area, pct, weight }: { area: string; pct: number; weight
   );
 }
 
-function LockedBreakdown() {
+function LockedBreakdown({ breakdown }: { breakdown: ReadinessBreakdownItem[] }) {
   return (
     <div className="flex-1 w-full flex flex-col gap-3 relative">
       <div className="flex flex-col gap-3 blur-[5px] select-none pointer-events-none opacity-60">
-        {READINESS.breakdown.map((b) => (
+        {breakdown.map((b) => (
           <BreakdownBar key={b.area} {...b} />
         ))}
       </div>
@@ -198,7 +202,7 @@ function TrendChip({ trend, delta }: { trend: "up" | "down" | "neutral"; delta: 
   );
 }
 
-function AttemptRow({ attempt }: { attempt: any }) {
+function AttemptRow({ attempt }: { attempt: Attempt }) {
   const passed = attempt.score >= attempt.passing;
   return (
     <Link
@@ -426,7 +430,7 @@ function FreeExhaustedCTA() {
           Free Diagnostic<br />Completed
         </h2>
         <p className="text-xs mt-2 leading-relaxed max-w-xs" style={{ color: "var(--muted-foreground)" }}>
-          You've used your one free exam. Upgrade to Premium for unlimited full-length mock exams.
+          You&apos;ve used your one free exam. Upgrade to Premium for unlimited full-length mock exams.
         </p>
       </div>
       <div className="relative z-10 flex flex-col sm:flex-row items-start gap-3">
@@ -475,14 +479,28 @@ export default async function MockExamHubPage() {
   const { data: { user }, error: userError } = await supabase.auth.getUser(token);
   if (!user || userError) redirect("/login");
 
-  // 2. Fetch User Profile (Premium check) and Past Attempts (Diagnostic Check)
-  const [profileResult, sessionsResult] = await Promise.all([
+  // 2. Fetch User Profile (Premium check), Past Attempts (Diagnostic Check),
+  //    and the derived performance snapshot that powers Exam Readiness.
+  const [profileResult, sessionsResult, stats] = await Promise.all([
     supabase.from("profiles").select("is_premium").eq("id", user.id).single(),
     supabase.from("exam_sessions").select("*").eq("user_id", user.id).eq("mode", "Mock").order("completed_at", { ascending: false }),
+    getUserStats(),
   ]);
 
   const isPremium = profileResult.data?.is_premium || false;
   const dbPastAttempts: ExamSession[] = sessionsResult.data || [];
+
+  // Exam-readiness projection — weighted across CSE subject areas. Falls back to
+  // an empty projection if the stats snapshot could not be loaded.
+  const readiness =
+    stats?.readiness ?? {
+      score: 0,
+      label: "Not Started",
+      verdict: "Complete a few practice sessions to unlock your readiness score.",
+      breakdown: [] as ReadinessBreakdownItem[],
+      hasData: false,
+      pointsToPassing: CSE_PASSING_SCORE,
+    };
   
   // 3. Determine the dynamic state
   const hasTakenDiagnostic = dbPastAttempts.some((s) => s.exam_type === "diagnostic");
@@ -491,22 +509,29 @@ export default async function MockExamHubPage() {
   const isFreeEligible = USER_STATE === "free_eligible";
   const isFreeExhausted = USER_STATE === "free_exhausted";
 
-  // 4. Map the raw DB data to the UI's expected format
+  // 4. Map the raw DB data to the UI's expected format.
+  //    NOTE: exam_sessions.score stores the RAW correct count, not a percent.
+  //    Every figure the UI shows as a score must be derived as a percentage.
+  const scorePct = (s: ExamSession) =>
+    s.total_questions > 0
+      ? Math.round(((s.score || 0) / s.total_questions) * 100)
+      : 0;
+
   const PAST_ATTEMPTS = dbPastAttempts.map((session, index, arr) => {
     const prevSession = arr[index + 1];
+    const pct = scorePct(session);
+
     let trend: "up" | "down" | "neutral" = "neutral";
     let delta = 0;
-
     if (prevSession) {
-      delta = (session.score || 0) - (prevSession.score || 0);
+      delta = pct - scorePct(prevSession);
       if (delta > 0) trend = "up";
       else if (delta < 0) trend = "down";
     }
 
-    const total = session.total_questions || 150;
-    const score = session.score || 0;
-    const correct = Math.round((score / 100) * total); // Assume score is out of 100
-    
+    const total = session.total_questions || 0;
+    const correct = session.score || 0;
+
     // Convert seconds to hrs and mins
     const hrs = Math.floor((session.time_spent_seconds || 0) / 3600);
     const mins = Math.floor(((session.time_spent_seconds || 0) % 3600) / 60);
@@ -517,10 +542,12 @@ export default async function MockExamHubPage() {
 
     return {
       id: session.id,
-      date: new Date(session.completed_at || Date.now()).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+      date: session.completed_at
+        ? new Date(session.completed_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+        : "—",
       level: levelLabel,
-      score,
-      passing: 80, // passing is always 80% for CSE
+      score: pct,
+      passing: CSE_PASSING_SCORE, // CSE passing mark is 80%
       timeUsed,
       totalTime: session.exam_type === "diagnostic" ? "1h 30m" : "3h 00m",
       correct,
@@ -534,9 +561,9 @@ export default async function MockExamHubPage() {
   const latest = PAST_ATTEMPTS[0] ?? null;
 
   const readinessColor =
-    READINESS.score >= 80
+    readiness.score >= 80
       ? "var(--spark-correct-text)"
-      : READINESS.score >= 60
+      : readiness.score >= 60
       ? "var(--accent)"
       : "var(--spark-wrong-text)";
 
@@ -623,26 +650,29 @@ export default async function MockExamHubPage() {
 
           <div className="flex flex-col sm:flex-row items-center gap-6">
             <div className="flex flex-col items-center gap-2">
-              <ReadinessRing score={READINESS.score} />
+              <ReadinessRing score={readiness.score} />
               <span className="font-heading text-sm font-bold" style={{ color: readinessColor }}>
-                {READINESS.label}
+                {readiness.label}
               </span>
             </div>
 
             {isFreeExhausted ? (
-              <LockedBreakdown />
+              <LockedBreakdown breakdown={readiness.breakdown} />
             ) : (
               <div className="flex-1 w-full flex flex-col gap-3">
                 <p className="text-xs leading-relaxed" style={{ color: "var(--muted-foreground)" }}>
-                  {READINESS.verdict}
+                  {readiness.verdict}
                 </p>
-                {READINESS.breakdown.map((b) => (
+                {readiness.breakdown.map((b) => (
                   <BreakdownBar key={b.area} {...b} />
                 ))}
                 <div className="flex items-center gap-1.5 mt-1 text-xs" style={{ color: "var(--muted-foreground)" }}>
                   <AlertTriangle size={11} style={{ color: "var(--accent)" }} />
                   CSE passing score is{" "}
-                  <strong style={{ color: "var(--accent)" }}>80%</strong>. You need +13 pts.
+                  <strong style={{ color: "var(--accent)" }}>{CSE_PASSING_SCORE}%</strong>.
+                  {readiness.pointsToPassing > 0
+                    ? ` You need +${readiness.pointsToPassing} pts.`
+                    : " You're tracking above the passing mark."}
                 </div>
               </div>
             )}

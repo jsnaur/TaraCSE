@@ -3,6 +3,8 @@
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { verifyAdminStatus } from "@/lib/admin-auth";
+import { getUserStats } from "@/lib/analytics/server";
+import type { SidebarIdentity } from "./types";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -58,4 +60,30 @@ export async function saveExamCategory(category: string) {
 
 export async function checkAdminStatus(): Promise<boolean> {
   return verifyAdminStatus();
+}
+
+/** Derives a user's username, initials and gamification rank for the sidebar. */
+function deriveInitials(username: string): string {
+  const parts = username.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return username.trim().slice(0, 2).toUpperCase() || "??";
+}
+
+/** Live identity block (name, rank, XP) shown at the bottom of the sidebar. */
+export async function getSidebarIdentity(): Promise<SidebarIdentity | null> {
+  try {
+    const stats = await getUserStats();
+    if (!stats) return null;
+    return {
+      username: stats.username,
+      initials: deriveInitials(stats.username),
+      xp: stats.xp,
+      rankName: stats.rank.current.name,
+    };
+  } catch (err) {
+    console.error("getSidebarIdentity failed:", err);
+    return null;
+  }
 }

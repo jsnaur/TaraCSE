@@ -16,16 +16,22 @@ import {
   Bookmark,
 } from "lucide-react";
 import { logout } from "@/app/(auth)/actions";
-import { checkAdminStatus } from "@/app/dashboard/actions";
+import { checkAdminStatus, getSidebarIdentity } from "@/app/dashboard/actions";
+import type { SidebarIdentity } from "@/app/dashboard/types";
 
 export function Sidebar({ className = "" }: { className?: string }) {
   const pathname = usePathname();
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [identity, setIdentity] = useState<SidebarIdentity | null>(null);
 
   useEffect(() => {
     checkAdminStatus()
       .then(setIsAdmin)
       .catch(() => setIsAdmin(false));
+
+    getSidebarIdentity()
+      .then(setIdentity)
+      .catch(() => setIdentity(null));
   }, []);
 
   const navItems = [
@@ -163,12 +169,29 @@ export function Sidebar({ className = "" }: { className?: string }) {
       {/* Sidebar Bottom (User Info) */}
       <div className="mt-auto p-3.5 border-t border-border shrink-0 relative">
         <div className="flex items-center gap-2.5 pr-12">
-          <div className="w-8 h-8 rounded-full bg-primary/20 border-2 border-primary flex items-center justify-center text-[11px] font-bold text-primary shrink-0 font-heading">
-            JR
-          </div>
+          {identity ? (
+            <div className="w-8 h-8 rounded-full bg-primary/20 border-2 border-primary flex items-center justify-center text-[11px] font-bold text-primary shrink-0 font-heading">
+              {identity.initials}
+            </div>
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-muted animate-pulse shrink-0" />
+          )}
           <div className="truncate">
-            <div className="text-xs font-semibold text-foreground truncate">Juan Reyes</div>
-            <div className="text-[10px] text-muted-foreground mt-px truncate">Mag-aaral II &middot; 620 XP</div>
+            {identity ? (
+              <>
+                <div className="text-xs font-semibold text-foreground truncate">
+                  {identity.username}
+                </div>
+                <div className="text-[10px] text-muted-foreground mt-px truncate">
+                  {identity.rankName} &middot; {identity.xp.toLocaleString()} XP
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="h-3 w-20 rounded bg-muted animate-pulse" />
+                <div className="h-2.5 w-24 rounded bg-muted animate-pulse mt-1.5" />
+              </>
+            )}
           </div>
         </div>
 
