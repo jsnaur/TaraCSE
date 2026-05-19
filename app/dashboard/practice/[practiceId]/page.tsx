@@ -624,12 +624,12 @@ export default function PracticePage() {
                                   KOT AI
                                 </span>
                               </div>
-                              <p
+                              <MathText
+                                text={currentState.aiHint}
+                                block
                                 className="text-sm font-medium leading-relaxed whitespace-pre-line"
                                 style={{ color: "var(--spark-ai-text)" }}
-                              >
-                                {currentState.aiHint}
-                              </p>
+                              />
                             </motion.div>
                           ) : (
                             <div className="pt-2">

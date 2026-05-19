@@ -5,6 +5,7 @@ import { verifyAdminStatus } from "@/lib/admin-auth";
 import { logAudit } from "@/lib/audit";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { QUESTIONS_PAGE_SIZE } from "./constants";
 
 export type QualityStatus = "unreviewed" | "flagged" | "approved";
 
@@ -29,6 +30,37 @@ export interface Question {
   source?: "manual" | "ai_generated";
 }
 
+// ─── Filtering / Pagination Types ─────────────────────────────────────────────
+
+export interface QuestionFilters {
+  /** Free-text match against question_text and category. */
+  search: string;
+  level: "All" | "Professional" | "Subprofessional";
+  status: "All" | "Active" | "Inactive";
+  quality: "All" | "Flagged" | "Unreviewed" | "Approved";
+  /** "All" or an exact category name. */
+  category: string;
+  /** "All" | "Easy" | "Medium" | "Hard". */
+  difficulty: string;
+}
+
+/** One page of results plus the total count matching the active filter. */
+export interface QuestionPage {
+  questions: Question[];
+  total: number;
+  page: number;
+}
+
+/** Aggregate counts shown in the dashboard stat cards. */
+export interface QuestionStats {
+  total: number;
+  active: number;
+  prof: number;
+  subprof: number;
+  flagged: number;
+  unreviewed: number;
+}
+
 // ─── Zod Schemas for Security Validation ──────────────────────────────────────
 
 const optionSchema = z.object({
@@ -45,33 +77,142 @@ const questionSchema = z.object({
   explanation: z.string().min(1, "Explanation is required").max(10000, "Explanation exceeds maximum length"),
 });
 
+// ─── Filter Helper ────────────────────────────────────────────────────────────
+
+/**
+ * Applies a QuestionFilters set to any Supabase filter builder (select, update,
+ * or delete). The generic keeps the builder's concrete type so chained `.order`
+ * / `.range` calls stay available afterwards.
+ */
+function applyQuestionFilters<Q extends {
+  eq(column: string, value: unknown): Q;
+  or(filters: string): Q;
+}>(query: Q, f: QuestionFilters): Q {
+  const term = f.search.trim().replace(/[,()]/g, " ").trim();
+  if (term) {
+    // ilike is case-insensitive; the OR covers both the prompt and its category.
+    query = query.or(`question_text.ilike.%${term}%,category.ilike.%${term}%`);
+  }
+  if (f.level !== "All") query = query.eq("level", f.level);
+  if (f.category !== "All") query = query.eq("category", f.category);
+  if (f.difficulty !== "All") query = query.eq("difficulty", f.difficulty);
+  if (f.status === "Active") query = query.eq("is_active", true);
+  if (f.status === "Inactive") query = query.eq("is_active", false);
+  if (f.quality === "Flagged") query = query.eq("quality_status", "flagged");
+  if (f.quality === "Approved") query = query.eq("quality_status", "approved");
+  // Un-scanned questions have either no quality_status or "unreviewed".
+  if (f.quality === "Unreviewed") query = query.or("quality_status.is.null,quality_status.eq.unreviewed");
+  return query;
+}
+
+/** Counts the questions matching a filter without transferring any rows. */
+async function countMatching(
+  adminDb: ReturnType<typeof createAdminClient>,
+  filters: QuestionFilters,
+): Promise<number> {
+  let query = adminDb.from("questions").select("*", { count: "exact", head: true });
+  query = applyQuestionFilters(query, filters);
+  const { count, error } = await query;
+  if (error) throw new Error("Failed to count questions");
+  return count ?? 0;
+}
+
 // ─── Actions ──────────────────────────────────────────────────────────────────
 
 /**
- * Fetches questions with optional filtering
+ * Fetches a single page of questions matching the given filters, plus the
+ * total count of matching rows. Server-side paging keeps the payload small no
+ * matter how large the bank grows.
  */
-export async function fetchQuestions(): Promise<Question[]> {
+export async function fetchQuestions(params: {
+  page: number;
+  filters: QuestionFilters;
+}): Promise<QuestionPage> {
+  const isAdmin = await verifyAdminStatus();
+  if (!isAdmin) throw new Error("Unauthorized");
+
+  const adminDb = createAdminClient();
+  const page = Math.max(1, Math.floor(params.page) || 1);
+  const from = (page - 1) * QUESTIONS_PAGE_SIZE;
+  const to = from + QUESTIONS_PAGE_SIZE - 1;
+
+  // Filters must be applied before .order/.range — those return a transform
+  // builder that no longer exposes .eq/.or.
+  let query = adminDb.from("questions").select("*", { count: "exact" });
+  query = applyQuestionFilters(query, params.filters);
+
+  const { data, error, count } = await query
+    .order("created_at", { ascending: false })
+    .order("id")
+    .range(from, to);
+
+  if (error) throw new Error("Failed to fetch questions");
+
+  return { questions: (data ?? []) as Question[], total: count ?? 0, page };
+}
+
+/**
+ * Returns aggregate counts for the dashboard stat cards. Uses head-only count
+ * queries so no question rows are transferred.
+ */
+export async function fetchQuestionStats(): Promise<QuestionStats> {
+  const isAdmin = await verifyAdminStatus();
+  if (!isAdmin) throw new Error("Unauthorized");
+
+  const adminDb = createAdminClient();
+  const head = () => adminDb.from("questions").select("*", { count: "exact", head: true });
+
+  const [total, active, prof, subprof, flagged, unreviewed] = await Promise.all([
+    head(),
+    head().eq("is_active", true),
+    head().eq("level", "Professional"),
+    head().eq("level", "Subprofessional"),
+    head().eq("quality_status", "flagged"),
+    head().or("quality_status.is.null,quality_status.eq.unreviewed"),
+  ]);
+
+  const num = (r: { count: number | null; error: unknown }) => {
+    if (r.error) throw new Error("Failed to fetch question stats");
+    return r.count ?? 0;
+  };
+
+  return {
+    total: num(total),
+    active: num(active),
+    prof: num(prof),
+    subprof: num(subprof),
+    flagged: num(flagged),
+    unreviewed: num(unreviewed),
+  };
+}
+
+/**
+ * Fetches every question matching a filter — used only for the explicit
+ * "Export Filtered" action, where the admin opts into a full transfer.
+ */
+export async function fetchAllQuestionsForExport(filters: QuestionFilters): Promise<Question[]> {
   const isAdmin = await verifyAdminStatus();
   if (!isAdmin) throw new Error("Unauthorized");
 
   const adminDb = createAdminClient();
 
-  // Paged read: Supabase caps a single API response at its `max-rows` limit
-  // (1000 by default), so a plain .limit() silently drops every question past
-  // the first page once the bank grows beyond it.
+  // Supabase caps a single response at its `max-rows` limit (1000 by default),
+  // so we page until a short page signals the end.
   const PAGE = 1000;
   const all: Question[] = [];
   for (let from = 0; from < 200_000; from += PAGE) {
-    const { data, error } = await adminDb
-      .from("questions")
-      .select("*")
+    let query = adminDb.from("questions").select("*");
+    query = applyQuestionFilters(query, filters);
+
+    const { data, error } = await query
       .order("created_at", { ascending: false })
       .order("id")
       .range(from, from + PAGE - 1);
 
-    if (error) throw new Error("Failed to fetch questions");
+    if (error) throw new Error("Failed to export questions");
     if (!data || data.length === 0) break;
     all.push(...(data as Question[]));
+    if (data.length < PAGE) break;
   }
   return all;
 }
@@ -167,47 +308,63 @@ export async function updateQuestion(id: string, question: Omit<Question, "id" |
 }
 
 /**
- * Marks flagged questions as approved (keeps them, clears them from the
- * flagged list without deleting).
+ * Marks every flagged question matching the active filter as approved (keeps
+ * them, clears them from the flagged list without deleting). Returns the count
+ * affected. Guarded to the Flagged view so it can never touch the whole bank.
  */
-export async function approveQuestions(ids: string[]) {
+export async function approveFilteredQuestions(filters: QuestionFilters): Promise<number> {
   const isAdmin = await verifyAdminStatus();
   if (!isAdmin) throw new Error("Unauthorized");
-  if (!ids || ids.length === 0) return;
+  if (filters.quality !== "Flagged") {
+    throw new Error("Bulk approve is only available on the Flagged view");
+  }
 
   const adminDb = createAdminClient();
-  const { error } = await adminDb
-    .from("questions")
-    .update({ quality_status: "approved" })
-    .in("id", ids);
+  const count = await countMatching(adminDb, filters);
+  if (count === 0) return 0;
+
+  let query = adminDb.from("questions").update({ quality_status: "approved" });
+  query = applyQuestionFilters(query, filters);
+  const { error } = await query;
 
   if (error) throw new Error("Failed to approve questions");
   await logAudit({
     action_type: "question.quality.approved",
     target_resource: "questions",
-    details: { count: ids.length, question_ids: ids },
+    details: { count, filters },
   });
   revalidatePath("/admin/questions");
+  return count;
 }
 
 /**
- * Hard-deletes multiple questions at once (used to clear flagged questions).
+ * Hard-deletes every flagged question matching the active filter. Returns the
+ * count removed. Guarded to the Flagged view so it can never touch the whole
+ * bank.
  */
-export async function bulkDeleteQuestions(ids: string[]) {
+export async function deleteFilteredQuestions(filters: QuestionFilters): Promise<number> {
   const isAdmin = await verifyAdminStatus();
   if (!isAdmin) throw new Error("Unauthorized");
-  if (!ids || ids.length === 0) return;
+  if (filters.quality !== "Flagged") {
+    throw new Error("Bulk delete is only available on the Flagged view");
+  }
 
   const adminDb = createAdminClient();
-  const { error } = await adminDb.from("questions").delete().in("id", ids);
+  const count = await countMatching(adminDb, filters);
+  if (count === 0) return 0;
+
+  let query = adminDb.from("questions").delete();
+  query = applyQuestionFilters(query, filters);
+  const { error } = await query;
 
   if (error) throw new Error("Failed to delete questions");
   await logAudit({
     action_type: "question.bulk_deleted",
     target_resource: "questions",
-    details: { count: ids.length, question_ids: ids },
+    details: { count, filters },
   });
   revalidatePath("/admin/questions");
+  return count;
 }
 
 /**

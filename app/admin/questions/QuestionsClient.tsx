@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useMemo, useEffect, ElementType, useRef } from "react";
+import { useState, useEffect, ElementType, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useRouter } from "next/navigation";
 import { MathText } from "@/components/ui/math-text";
 import {
   Table,
@@ -66,7 +65,8 @@ import {
   ScanLine,
   Zap
 } from "lucide-react";
-import { Question, toggleQuestionStatus, deleteQuestion, addQuestion, updateQuestion, revertIngestion, approveQuestions, bulkDeleteQuestions } from "./actions";
+import { Question, QuestionPage, QuestionStats, toggleQuestionStatus, deleteQuestion, addQuestion, updateQuestion, revertIngestion, approveFilteredQuestions, deleteFilteredQuestions, fetchAllQuestionsForExport } from "./actions";
+import { QUESTIONS_PAGE_SIZE, DEFAULT_QUESTION_FILTERS } from "./constants";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -125,19 +125,18 @@ const defaultFormState: QuestionFormData = {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function QuestionsClient({ initialQuestions }: { initialQuestions: Question[] }) {
+export default function QuestionsClient({ initialData, initialStats }: { initialData: QuestionPage, initialStats: QuestionStats }) {
   const { toast } = useToast();
-  const router = useRouter();
-  
-  const [questions, setQuestions] = useState<Question[]>(initialQuestions);
-  const [search, setSearch] = useState("");
-  
-  // Filters
-  const [activeLevel, setActiveLevel] = useState<"All" | "Professional" | "Subprofessional">("All");
-  const [activeStatus, setActiveStatus] = useState<"All" | "Active" | "Inactive">("All");
-  const [activeCategory, setActiveCategory] = useState<string>("All");
-  const [activeDifficulty, setActiveDifficulty] = useState<string>("All");
-  const [activeQuality, setActiveQuality] = useState<"All" | "Flagged" | "Unreviewed" | "Approved">("All");
+
+  // Pagination/filter state
+  const [page, setPage] = useState(initialData.page || 1);
+  const [filters, setFilters] = useState({ ...DEFAULT_QUESTION_FILTERS });
+  const [data, setData] = useState<QuestionPage>(initialData);
+  const [stats, setStats] = useState<QuestionStats>(initialStats);
+  const [loading, setLoading] = useState(false);
+  // Bumped after any mutation to force the current page + stats to re-fetch.
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [isExporting, setIsExporting] = useState(false);
   
   // Modals / Dialogs State
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -183,50 +182,64 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
   const [isPrewarming, setIsPrewarming] = useState(false);
   const [prewarmResult, setPrewarmResult] = useState<{ generated: number; failed: number; remaining: number; quotaReached: boolean; firstError: string | null } | null>(null);
 
-  useEffect(() => {
-    setQuestions(initialQuestions);
-  }, [initialQuestions]);
-
-  const stats = useMemo(() => ({
-    total: questions.length,
-    active: questions.filter(q => q.is_active).length,
-    prof: questions.filter(q => q.level === "Professional").length,
-    subprof: questions.filter(q => q.level === "Subprofessional").length,
-    flagged: questions.filter(q => q.quality_status === "flagged").length,
-    unreviewed: questions.filter(q => !q.quality_status || q.quality_status === "unreviewed").length,
-  }), [questions]);
-
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase();
-    return questions.filter(item => {
-      const matchesLevel = activeLevel === "All" || item.level === activeLevel;
-      const matchesCategory = activeCategory === "All" || item.category === activeCategory;
-      const matchesDifficulty = activeDifficulty === "All" || item.difficulty === activeDifficulty;
-      const matchesStatus = 
-        activeStatus === "All" || 
-        (activeStatus === "Active" && item.is_active) || 
-        (activeStatus === "Inactive" && !item.is_active);
-      const matchesSearch = item.question_text.toLowerCase().includes(q) || item.category.toLowerCase().includes(q);
-      const qStatus = item.quality_status ?? "unreviewed";
-      const matchesQuality =
-        activeQuality === "All" ||
-        (activeQuality === "Flagged" && qStatus === "flagged") ||
-        (activeQuality === "Unreviewed" && qStatus === "unreviewed") ||
-        (activeQuality === "Approved" && qStatus === "approved");
-
-      return matchesLevel && matchesStatus && matchesCategory && matchesDifficulty && matchesSearch && matchesQuality;
-    });
-  }, [questions, search, activeLevel, activeStatus, activeCategory, activeDifficulty, activeQuality]);
-
   // Helper to clear all active filters
   const clearFilters = () => {
-    setSearch("");
-    setActiveLevel("All");
-    setActiveCategory("All");
-    setActiveDifficulty("All");
-    setActiveStatus("All");
-    setActiveQuality("All");
+    setFilters({ ...DEFAULT_QUESTION_FILTERS });
+    setPage(1);
   };
+
+  // Fetch on page / filter change, or whenever a mutation bumps refreshKey.
+  useEffect(() => {
+    // Skip the very first run — the server already provided initialData for
+    // page 1 with the default filters. Any mutation (refreshKey > 0) always
+    // re-fetches, even while still on that initial page.
+    if (
+      refreshKey === 0 &&
+      page === initialData.page &&
+      JSON.stringify(filters) === JSON.stringify(DEFAULT_QUESTION_FILTERS)
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    fetch("/api/admin/questions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ page, filters }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error("Request failed");
+        return res.json();
+      })
+      .then((res) => {
+        if (cancelled) return;
+        setData(res.data);
+        if (res.stats) setStats(res.stats);
+        // A mutation may have emptied the last page (e.g. deleting its only
+        // row) — fall back to page 1 so the admin isn't stranded on a blank page.
+        if (res.data.questions.length === 0 && res.data.total > 0 && page > 1) {
+          setPage(1);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          toast({
+            title: "Load Failed",
+            description: "Could not refresh the question list.",
+            variant: "destructive",
+          });
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, filters, refreshKey]);
 
   // ─── Form Handlers ───
   function openAddForm() {
@@ -264,7 +277,7 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
         toast({ title: "Question Added", description: "New question added to the bank." });
       }
       setIsFormOpen(false);
-      router.refresh();
+      setRefreshKey((k) => k + 1);
     } catch (error) {
       toast({ title: "Save Failed", description: "An error occurred while saving.", variant: "destructive" });
     } finally {
@@ -273,40 +286,52 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
   }
 
   // ─── Export Handler (Secured) ───
-  const handleExport = () => {
-    const headers = ["ID", "Level", "Category", "Difficulty", "Question Text", "Option A", "Option B", "Option C", "Option D", "Correct Answer", "Explanation", "Status"];
-    
-    const rows = filtered.map(q => {
-      const letters = ['A', 'B', 'C', 'D'];
-      let correctLetter = 'A';
-      const optionTexts = q.options.map((opt, idx) => {
-        if (opt.is_correct) correctLetter = letters[idx];
-        return sanitizeForExport(opt.text);
+  // Exports EVERY question matching the active filter — not just the visible
+  // page — by asking the server for the full filtered set on demand.
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      const all = await fetchAllQuestionsForExport(filters);
+      if (all.length === 0) {
+        toast({ title: "Nothing to Export", description: "No questions match the active filter." });
+        return;
+      }
+      const headers = ["ID", "Level", "Category", "Difficulty", "Question Text", "Option A", "Option B", "Option C", "Option D", "Correct Answer", "Explanation", "Status"];
+      const rows = all.map(q => {
+        const letters = ['A', 'B', 'C', 'D'];
+        let correctLetter = 'A';
+        const optionTexts = q.options.map((opt, idx) => {
+          if (opt.is_correct) correctLetter = letters[idx];
+          return sanitizeForExport(opt.text);
+        });
+        return [
+          q.id,
+          q.level,
+          q.category,
+          q.difficulty,
+          sanitizeForExport(q.question_text),
+          ...optionTexts,
+          correctLetter,
+          sanitizeForExport(q.explanation),
+          q.is_active ? "Active" : "Inactive"
+        ].join('\t');
       });
-
-      return [
-        q.id,
-        q.level,
-        q.category,
-        q.difficulty,
-        sanitizeForExport(q.question_text),
-        ...optionTexts,
-        correctLetter,
-        sanitizeForExport(q.explanation),
-        q.is_active ? "Active" : "Inactive"
-      ].join('\t');
-    });
-
-    const tsvContent = [headers.join('\t'), ...rows].join('\n');
-    const blob = new Blob([tsvContent], { type: 'text/tab-separated-values' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `taracse_export_${new Date().toISOString().split('T')[0]}.tsv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+      const tsvContent = [headers.join('\t'), ...rows].join('\n');
+      const blob = new Blob([tsvContent], { type: 'text/tab-separated-values' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `taracse_export_${new Date().toISOString().split('T')[0]}.tsv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast({ title: "Export Ready", description: `${all.length} question${all.length === 1 ? "" : "s"} exported.` });
+    } catch {
+      toast({ title: "Export Failed", description: "Could not export questions.", variant: "destructive" });
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   // ─── Existing Handlers ───
@@ -314,7 +339,7 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
     try {
       await toggleQuestionStatus(id, current);
       toast({ title: "Status Updated", description: "Question visibility has been changed." });
-      router.refresh();
+      setRefreshKey((k) => k + 1);
     } catch {
       toast({ title: "Update Failed", description: "Could not update question status.", variant: "destructive" });
     }
@@ -326,7 +351,7 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
       await deleteQuestion(deleteId);
       toast({ title: "Question Deleted", description: "Record has been removed from the bank." });
       setDeleteId(null);
-      router.refresh();
+      setRefreshKey((k) => k + 1);
     } catch {
       toast({ title: "Delete Failed", description: "Could not remove question.", variant: "destructive" });
     }
@@ -366,7 +391,7 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
       setLastIngestedIds([]);
       setUploadResult(null);
       setShowRevertPanel(false);
-      router.refresh();
+      setRefreshKey((k) => k + 1);
     } catch {
       toast({ title: "Revert Failed", description: "Could not undo ingestion.", variant: "destructive" });
     } finally {
@@ -435,7 +460,7 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
         setFile(null);
         setMarkdownText("");
         if (fileInputRef.current) fileInputRef.current.value = "";
-        router.refresh();
+        setRefreshKey((k) => k + 1);
       }
     } catch {
       toast({ title: "Network Error", description: "Could not reach the server.", variant: "destructive" });
@@ -545,7 +570,7 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
           `${reviewed} reviewed, ${flagged} flagged this batch.` +
           (remaining === 0 ? "" : ` ${remaining} still pending.`),
       });
-      router.refresh();
+      setRefreshKey((k) => k + 1);
     } catch {
       toast({ title: "Scan Failed", description: "Could not reach the server.", variant: "destructive" });
     } finally {
@@ -626,15 +651,16 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
     }
   };
 
-  // ─── Bulk Quality Actions (operate on the currently filtered set) ───
+  // ─── Bulk Quality Actions ───
+  // These operate on EVERY flagged question matching the active filter — not
+  // just the rows on the current page — so the server resolves the set itself.
   const handleBulkApprove = async () => {
-    const ids = filtered.map((q) => q.id);
-    if (ids.length === 0) return;
     setIsBulkActing(true);
     try {
-      await approveQuestions(ids);
-      toast({ title: "Questions Approved", description: `${ids.length} questions cleared from the flagged list.` });
-      router.refresh();
+      const count = await approveFilteredQuestions(filters);
+      toast({ title: "Questions Approved", description: `${count} question${count === 1 ? "" : "s"} cleared from the flagged list.` });
+      setPage(1);
+      setRefreshKey((k) => k + 1);
     } catch {
       toast({ title: "Approve Failed", description: "Could not approve questions.", variant: "destructive" });
     } finally {
@@ -643,14 +669,13 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
   };
 
   const handleBulkDelete = async () => {
-    const ids = filtered.map((q) => q.id);
-    if (ids.length === 0) return;
     setIsBulkActing(true);
     try {
-      await bulkDeleteQuestions(ids);
-      toast({ title: "Questions Deleted", description: `${ids.length} questions removed from the bank.` });
+      const count = await deleteFilteredQuestions(filters);
+      toast({ title: "Questions Deleted", description: `${count} question${count === 1 ? "" : "s"} removed from the bank.` });
       setBulkDeleteOpen(false);
-      router.refresh();
+      setPage(1);
+      setRefreshKey((k) => k + 1);
     } catch {
       toast({ title: "Delete Failed", description: "Could not delete questions.", variant: "destructive" });
     } finally {
@@ -668,8 +693,9 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
           <p className="text-sm text-muted-foreground mt-0.5">Manage and organize your interactive review content.</p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" onClick={handleExport} className="rounded-xl font-bold gap-2 bg-card flex-1 sm:flex-none justify-center">
-            <Download className="w-4 h-4" /> <span className="sm:inline">Export Filtered</span>
+          <Button variant="outline" onClick={handleExport} disabled={isExporting} className="rounded-xl font-bold gap-2 bg-card flex-1 sm:flex-none justify-center">
+            {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            <span className="sm:inline">{isExporting ? "Exporting…" : "Export Filtered"}</span>
           </Button>
           <Button onClick={openAddForm} className="rounded-xl font-bold bg-primary text-primary-foreground gap-2 flex-1 sm:flex-none justify-center">
             <Plus className="w-4 h-4" /> <span className="sm:inline">Add Single</span>
@@ -885,7 +911,7 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
             <TabsTrigger value="list" className="rounded-xl px-4 sm:px-6 font-bold data-[state=active]:bg-card flex items-center gap-2 flex-1 sm:flex-none justify-center">
               Manage List
               <span className="bg-primary/15 text-primary text-[10px] px-2 py-0.5 rounded-full font-black">
-                {filtered.length}
+                {data.total}
               </span>
             </TabsTrigger>
             <TabsTrigger value="ingest" className="rounded-xl px-4 sm:px-6 font-bold data-[state=active]:bg-card flex-1 sm:flex-none justify-center">Bulk Ingest</TabsTrigger>
@@ -895,16 +921,16 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
             <div className="relative w-full sm:w-56">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                value={filters.search}
+                onChange={(e) => { setFilters(f => ({ ...f, search: e.target.value })); setPage(1); }}
                 placeholder="Search text..."
                 className="pl-9 h-10 rounded-xl bg-card w-full"
               />
             </div>
 
             <select
-              value={activeLevel}
-              onChange={(e) => setActiveLevel(e.target.value as any)}
+              value={filters.level}
+              onChange={(e) => { setFilters(f => ({ ...f, level: e.target.value as any })); setPage(1); }}
               className="h-10 rounded-xl bg-card border px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-ring flex-1 sm:flex-none min-w-[120px]"
             >
               <option value="All">All Levels</option>
@@ -913,8 +939,8 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
             </select>
 
             <select
-              value={activeCategory}
-              onChange={(e) => setActiveCategory(e.target.value)}
+              value={filters.category}
+              onChange={(e) => { setFilters(f => ({ ...f, category: e.target.value })); setPage(1); }}
               className="h-10 rounded-xl bg-card border px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-ring flex-1 sm:flex-none min-w-[140px]"
             >
               <option value="All">All Categories</option>
@@ -926,8 +952,8 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
             </select>
 
             <select
-              value={activeDifficulty}
-              onChange={(e) => setActiveDifficulty(e.target.value)}
+              value={filters.difficulty}
+              onChange={(e) => { setFilters(f => ({ ...f, difficulty: e.target.value })); setPage(1); }}
               className="h-10 rounded-xl bg-card border px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-ring flex-1 sm:flex-none min-w-[120px]"
             >
               <option value="All">All Difficulties</option>
@@ -937,8 +963,8 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
             </select>
 
             <select
-              value={activeStatus}
-              onChange={(e) => setActiveStatus(e.target.value as any)}
+              value={filters.status}
+              onChange={(e) => { setFilters(f => ({ ...f, status: e.target.value as any })); setPage(1); }}
               className="h-10 rounded-xl bg-card border px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-ring flex-1 sm:flex-none min-w-[120px]"
             >
               <option value="All">All Statuses</option>
@@ -947,8 +973,8 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
             </select>
 
             <select
-              value={activeQuality}
-              onChange={(e) => setActiveQuality(e.target.value as any)}
+              value={filters.quality}
+              onChange={(e) => { setFilters(f => ({ ...f, quality: e.target.value as any })); setPage(1); }}
               className="h-10 rounded-xl bg-card border px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-ring flex-1 sm:flex-none min-w-[120px]"
             >
               <option value="All">All Quality</option>
@@ -965,17 +991,10 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
           {/* Visual Indicator for Filter Status */}
           <div className="flex items-center justify-between px-1">
             <p className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              {filtered.length !== questions.length ? (
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary"></span>
-                </span>
-              ) : (
-                <span className="w-2.5 h-2.5 rounded-full bg-muted-foreground/30"></span>
-              )}
-              Showing <strong className="text-foreground">{filtered.length}</strong> {filtered.length === 1 ? 'question' : 'questions'}
+              <span className="w-2.5 h-2.5 rounded-full bg-muted-foreground/30"></span>
+              Showing <strong className="text-foreground">{data.total}</strong> {data.total === 1 ? 'question' : 'questions'}
             </p>
-            {filtered.length !== questions.length && (
+            {JSON.stringify(filters) !== JSON.stringify(DEFAULT_QUESTION_FILTERS) && (
               <Button variant="ghost" size="sm" onClick={clearFilters} className="h-8 text-xs text-muted-foreground hover:text-foreground">
                 Clear Filters
               </Button>
@@ -983,11 +1002,11 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
           </div>
 
           {/* Bulk actions toolbar — shown when filtering by Flagged */}
-          {activeQuality === "Flagged" && filtered.length > 0 && (
+          {filters.quality === "Flagged" && data.questions.length > 0 && (
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900 rounded-2xl px-4 py-3">
               <p className="text-sm text-rose-700 dark:text-rose-300 font-medium flex items-center gap-2">
                 <Flag className="w-4 h-4 shrink-0" />
-                {filtered.length} flagged question{filtered.length === 1 ? "" : "s"} shown — approve to keep, or delete to remove.
+                {data.questions.length} flagged question{data.questions.length === 1 ? "" : "s"} shown — approve to keep, or delete to remove.
               </p>
               <div className="flex gap-2 shrink-0">
                 <Button variant="outline" size="sm" onClick={handleBulkApprove} disabled={isBulkActing} className="rounded-xl font-bold gap-1.5 bg-card">
@@ -1001,90 +1020,124 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
             </div>
           )}
 
+          {/* Responsive: Table on desktop, cards on mobile */}
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-card border rounded-2xl overflow-hidden shadow-sm">
-            <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="border-border bg-muted/30">
-                  <TableHead className="pl-6 w-[40%]"><span className="text-xs font-bold uppercase tracking-wider">Question Text</span></TableHead>
-                  <TableHead><span className="text-xs font-bold uppercase tracking-wider">Category</span></TableHead>
-                  <TableHead><span className="text-xs font-bold uppercase tracking-wider">Difficulty</span></TableHead>
-                  <TableHead className="text-right pr-6"><span className="text-xs font-bold uppercase tracking-wider">Actions</span></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <AnimatePresence mode="popLayout">
-                  {filtered.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={4} className="h-32 text-center text-muted-foreground">No questions found matching your criteria.</TableCell>
-                    </TableRow>
+            {loading ? (
+              <div className="h-32 flex items-center justify-center text-muted-foreground">Loading…</div>
+            ) : (
+              <>
+                <div className="hidden sm:block overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="border-border bg-muted/30">
+                        <TableHead className="pl-6 w-[40%]"><span className="text-xs font-bold uppercase tracking-wider">Question Text</span></TableHead>
+                        <TableHead><span className="text-xs font-bold uppercase tracking-wider">Category</span></TableHead>
+                        <TableHead><span className="text-xs font-bold uppercase tracking-wider">Difficulty</span></TableHead>
+                        <TableHead className="text-right pr-6"><span className="text-xs font-bold uppercase tracking-wider">Actions</span></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {data.questions.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={4} className="h-32 text-center text-muted-foreground">No questions found matching your criteria.</TableCell>
+                        </TableRow>
+                      ) : (
+                        data.questions.map((item) => (
+                          <TableRow key={item.id} className={`border-border transition-colors group ${!item.is_active ? 'bg-muted/40 opacity-70 hover:opacity-100 hover:bg-muted/60' : 'hover:bg-muted/30'}`}>
+                            <TableCell className="pl-6 py-4">
+                              <MathText text={item.question_text} className={`text-sm font-medium line-clamp-2 max-w-md ${!item.is_active ? 'text-muted-foreground' : 'text-foreground'}`} />
+                              <div className="flex items-center gap-2 mt-1">
+                                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-tighter">{item.level}</p>
+                                {!item.is_active && (
+                                  <Badge variant="secondary" className="text-[9px] h-4 px-1.5 py-0 bg-rose-100 text-rose-600 hover:bg-rose-100 dark:bg-rose-900/30 dark:text-rose-400">Inactive</Badge>
+                                )}
+                                {item.quality_status === "flagged" && (
+                                  <Badge variant="secondary" className="text-[9px] h-4 px-1.5 py-0 bg-amber-100 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400 gap-0.5">
+                                    <Flag className="w-2.5 h-2.5" /> Flagged
+                                  </Badge>
+                                )}
+                                {item.source === "ai_generated" && (
+                                  <Badge variant="secondary" className="text-[9px] h-4 px-1.5 py-0 bg-blue-100 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400">AI</Badge>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="rounded-lg font-bold text-[10px] bg-background">{item.category}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              <span className={`text-xs font-bold ${!item.is_active ? 'text-muted-foreground' : item.difficulty === 'Hard' ? 'text-rose-500' : item.difficulty === 'Medium' ? 'text-amber-500' : 'text-emerald-500'}`}>
+                                {item.difficulty}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right pr-6">
+                              <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => setViewingQuestion(item)} title="View Details">
+                                  <BookOpen className="w-4 h-4 text-blue-500" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => openEditForm(item)} title="Edit Question">
+                                  <Pencil className="w-4 h-4 text-amber-500" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-8 w-8 rounded-lg" 
+                                  onClick={() => handleToggleStatus(item.id, item.is_active)}
+                                  title={item.is_active ? "Deactivate Question" : "Restore Question"}
+                                >
+                                  {item.is_active ? <Eye className="w-4 h-4 text-emerald-500" /> : <EyeOff className="w-4 h-4 text-muted-foreground" />}
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-rose-100 hover:text-rose-600 dark:hover:bg-rose-900/40" onClick={() => setDeleteId(item.id)}>
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+                {/* Card list for mobile */}
+                <div className="sm:hidden">
+                  {data.questions.length === 0 ? (
+                    <div className="h-32 flex items-center justify-center text-muted-foreground">No questions found.</div>
                   ) : (
-                    filtered.map((item) => (
-                      <motion.tr 
-                        key={item.id} 
-                        initial={{ opacity: 0 }} 
-                        animate={{ opacity: 1 }} 
-                        exit={{ opacity: 0 }} 
-                        className={`border-border transition-colors group ${!item.is_active ? 'bg-muted/40 opacity-70 hover:opacity-100 hover:bg-muted/60' : 'hover:bg-muted/30'}`}
-                      >
-                        <TableCell className="pl-6 py-4">
-                          <MathText 
-                            text={item.question_text} 
-                            className={`text-sm font-medium line-clamp-2 max-w-md ${!item.is_active ? 'text-muted-foreground' : 'text-foreground'}`} 
-                          />
-                          <div className="flex items-center gap-2 mt-1">
-                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-tighter">{item.level}</p>
-                            {!item.is_active && (
-                              <Badge variant="secondary" className="text-[9px] h-4 px-1.5 py-0 bg-rose-100 text-rose-600 hover:bg-rose-100 dark:bg-rose-900/30 dark:text-rose-400">Inactive</Badge>
-                            )}
-                            {item.quality_status === "flagged" && (
-                              <Badge variant="secondary" className="text-[9px] h-4 px-1.5 py-0 bg-amber-100 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400 gap-0.5">
-                                <Flag className="w-2.5 h-2.5" /> Flagged
-                              </Badge>
-                            )}
-                            {item.source === "ai_generated" && (
-                              <Badge variant="secondary" className="text-[9px] h-4 px-1.5 py-0 bg-blue-100 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400">AI</Badge>
-                            )}
+                    <div className="flex flex-col gap-3 p-2">
+                      {data.questions.map((item) => (
+                        <div key={item.id} className={`rounded-2xl border border-border bg-card p-4 shadow-sm ${!item.is_active ? 'opacity-70' : ''}`}>
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-xs font-bold uppercase tracking-tighter text-muted-foreground">{item.level}</span>
+                            <Badge variant="outline" className="rounded-lg font-bold text-[10px] bg-background">{item.category}</Badge>
+                            <span className={`text-xs font-bold ${!item.is_active ? 'text-muted-foreground' : item.difficulty === 'Hard' ? 'text-rose-500' : item.difficulty === 'Medium' ? 'text-amber-500' : 'text-emerald-500'}`}>{item.difficulty}</span>
+                            {!item.is_active && <Badge variant="secondary" className="text-[9px] h-4 px-1.5 py-0 bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400">Inactive</Badge>}
+                            {item.quality_status === "flagged" && <Badge variant="secondary" className="text-[9px] h-4 px-1.5 py-0 bg-amber-100 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400 gap-0.5"><Flag className="w-2.5 h-2.5" /> Flagged</Badge>}
+                            {item.source === "ai_generated" && <Badge variant="secondary" className="text-[9px] h-4 px-1.5 py-0 bg-blue-100 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400">AI</Badge>}
                           </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="rounded-lg font-bold text-[10px] bg-background">{item.category}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <span className={`text-xs font-bold ${!item.is_active ? 'text-muted-foreground' : item.difficulty === 'Hard' ? 'text-rose-500' : item.difficulty === 'Medium' ? 'text-amber-500' : 'text-emerald-500'}`}>
-                            {item.difficulty}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right pr-6">
-                          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => setViewingQuestion(item)} title="View Details">
-                              <BookOpen className="w-4 h-4 text-blue-500" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => openEditForm(item)} title="Edit Question">
-                              <Pencil className="w-4 h-4 text-amber-500" />
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-8 w-8 rounded-lg" 
-                              onClick={() => handleToggleStatus(item.id, item.is_active)}
-                              title={item.is_active ? "Deactivate Question" : "Restore Question"}
-                            >
-                              {item.is_active ? <Eye className="w-4 h-4 text-emerald-500" /> : <EyeOff className="w-4 h-4 text-muted-foreground" />}
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-rose-100 hover:text-rose-600 dark:hover:bg-rose-900/40" onClick={() => setDeleteId(item.id)}>
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                          <MathText text={item.question_text} className={`text-sm font-medium line-clamp-2 max-w-md ${!item.is_active ? 'text-muted-foreground' : 'text-foreground'}`} />
+                          <div className="flex gap-2 mt-2">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => setViewingQuestion(item)} title="View Details"><BookOpen className="w-4 h-4 text-blue-500" /></Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => openEditForm(item)} title="Edit Question"><Pencil className="w-4 h-4 text-amber-500" /></Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => handleToggleStatus(item.id, item.is_active)} title={item.is_active ? "Deactivate Question" : "Restore Question"}>{item.is_active ? <Eye className="w-4 h-4 text-emerald-500" /> : <EyeOff className="w-4 h-4 text-muted-foreground" />}</Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-rose-100 hover:text-rose-600 dark:hover:bg-rose-900/40" onClick={() => setDeleteId(item.id)}><Trash2 className="w-4 h-4" /></Button>
                           </div>
-                        </TableCell>
-                      </motion.tr>
-                    ))
+                        </div>
+                      ))}
+                    </div>
                   )}
-                </AnimatePresence>
-              </TableBody>
-            </Table>
-            </div>
+                </div>
+              </>
+            )}
           </motion.div>
+          {/* Pagination controls */}
+          {data.total > QUESTIONS_PAGE_SIZE && (
+            <div className="flex justify-center items-center gap-2 mt-4">
+              <Button variant="ghost" size="sm" disabled={page === 1} onClick={() => setPage(page - 1)}>Prev</Button>
+              {Array.from({ length: Math.ceil(data.total / QUESTIONS_PAGE_SIZE) }, (_, i) => i + 1).map((p) => (
+                <Button key={p} variant={p === page ? "default" : "outline"} size="sm" onClick={() => setPage(p)}>{p}</Button>
+              ))}
+              <Button variant="ghost" size="sm" disabled={page === Math.ceil(data.total / QUESTIONS_PAGE_SIZE)} onClick={() => setPage(page + 1)}>Next</Button>
+            </div>
+          )}
         </TabsContent>
 
         {/* ── Bulk Ingest Tab ── */}
@@ -1466,8 +1519,8 @@ export default function QuestionsClient({ initialQuestions }: { initialQuestions
       <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
         <AlertDialogContent className="rounded-3xl border-border max-w-sm">
           <AlertDialogHeader>
-            <AlertDialogTitle className="font-heading font-black">Delete {filtered.length} Questions?</AlertDialogTitle>
-            <AlertDialogDescription>All {filtered.length} questions currently shown will be permanently removed from the bank. This cannot be undone.</AlertDialogDescription>
+            <AlertDialogTitle className="font-heading font-black">Delete {data.total} Questions?</AlertDialogTitle>
+            <AlertDialogDescription>All {data.total} flagged questions matching the active filter will be permanently removed from the bank. This cannot be undone.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="rounded-2xl">Cancel</AlertDialogCancel>

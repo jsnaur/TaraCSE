@@ -776,9 +776,11 @@ export default function ResumeSessionPage() {
                           KOT AI
                         </span>
                       </div>
-                      <p className="whitespace-pre-line leading-relaxed">
-                        {s.aiHint}
-                      </p>
+                      <MathText
+                        text={s.aiHint}
+                        block
+                        className="whitespace-pre-line leading-relaxed"
+                      />
                     </div>
                   )}
                 </motion.div>

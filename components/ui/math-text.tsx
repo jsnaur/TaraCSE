@@ -33,10 +33,25 @@ export function MathText({ text, className = "", block = false, style }: MathTex
     <Wrapper className={className} style={style}>
       {parts.map((part, index) => {
         if (part.startsWith("$$") && part.endsWith("$$")) {
-          return <BlockMath key={index} math={part.slice(2, -2)} />;
+          // AI-generated math is less controlled than curated explanations —
+          // a malformed expression must degrade to its raw source, not crash
+          // the whole card. renderError returns the original delimited text.
+          return (
+            <BlockMath
+              key={index}
+              math={part.slice(2, -2)}
+              renderError={() => <span>{part}</span>}
+            />
+          );
         }
         if (part.startsWith("$") && part.endsWith("$") && part.length > 2) {
-          return <InlineMath key={index} math={part.slice(1, -1)} />;
+          return (
+            <InlineMath
+              key={index}
+              math={part.slice(1, -1)}
+              renderError={() => <span>{part}</span>}
+            />
+          );
         }
         return (
           <React.Fragment key={index}>
