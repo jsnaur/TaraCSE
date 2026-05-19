@@ -14,7 +14,9 @@ import {
   Menu, TrendingUp, Target, Clock, BrainCircuit,
   AlertTriangle, CheckCircle2, Flame, BarChart3,
 } from "lucide-react";
-import { getAnalyticsData, type AnalyticsData, type CategoryStat } from "./actions";
+import { getAnalyticsData } from "./actions";
+import type { AnalyticsData } from "./types";
+import type { CategoryStat } from "@/lib/analytics/types";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   BookOpen,
@@ -23,65 +23,25 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
+import { getPracticeHubData } from "./actions";
+import type { PracticeHubData } from "./types";
+import type { CategoryStat, PracticeSessionSummary } from "@/lib/analytics/types";
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const STATS = {
-  totalAnswered: 2_418,
-  accuracy: 73,
-  streak: 9,
-  xp: 4_860,
-  weakestCategory: "Numerical Reasoning",
-  strongestCategory: "Verbal Analogies",
-};
+/** Semantic colour for an accuracy percentage. */
+function accuracyColor(pct: number): string {
+  if (pct >= 80) return "var(--spark-correct-text)";
+  if (pct >= 60) return "var(--accent)";
+  return "var(--spark-wrong-text)";
+}
 
-const CATEGORY_BREAKDOWN = [
-  { label: "Verbal Analogies", pct: 87, color: "var(--spark-correct-text)" },
-  { label: "Reading Comprehension", pct: 76, color: "var(--secondary)" },
-  { label: "Grammar & Correct Usage", pct: 68, color: "var(--accent)" },
-  { label: "Numerical Reasoning", pct: 51, color: "var(--spark-wrong-text)" },
-  { label: "General Info & CS", pct: 74, color: "var(--primary)" },
-];
-
-const RECENT_SESSIONS = [
-  {
-    id: "s1",
-    category: "Verbal Analogies",
-    date: "Today, 9:42 AM",
-    total: 30,
-    answered: 30,
-    correct: 26,
-    status: "completed",
-  },
-  {
-    id: "s2",
-    category: "Numerical Reasoning",
-    date: "Yesterday, 8:15 PM",
-    total: 25,
-    answered: 14,
-    correct: 7,
-    status: "incomplete",
-  },
-  {
-    id: "s3",
-    category: "Grammar & Correct Usage",
-    date: "Apr 17, 3:00 PM",
-    total: 40,
-    answered: 40,
-    correct: 28,
-    status: "completed",
-  },
-  {
-    id: "s4",
-    category: "Reading Comprehension",
-    date: "Apr 16, 7:55 PM",
-    total: 20,
-    answered: 20,
-    correct: 16,
-    status: "completed",
-  },
-];
+/** Human label for the (possibly multi-category) session. */
+function categoryLabel(categories: string[]): string {
+  if (categories.length === 0) return "Practice Session";
+  if (categories.length === 1) return categories[0];
+  return `${categories.length} Categories`;
+}
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -131,12 +91,11 @@ function StatPill({
 function CategoryBar({
   label,
   pct,
-  color,
 }: {
   label: string;
   pct: number;
-  color: string;
 }) {
+  const color = accuracyColor(pct);
   return (
     <div className="flex items-center gap-3">
       <span
@@ -164,17 +123,16 @@ function CategoryBar({
   );
 }
 
-function SessionCard({ session }: { session: (typeof RECENT_SESSIONS)[0] }) {
-  const isIncomplete = session.status === "incomplete";
-  const accuracy = Math.round((session.correct / session.answered) * 100);
+function SessionCard({ session }: { session: PracticeSessionSummary }) {
+  const isIncomplete = !session.completed;
+  const href = isIncomplete
+    ? `/dashboard/practice/session/${session.practiceId}`
+    : `/dashboard/practice/review/${session.examSessionId}`;
+  const accuracy = session.accuracy ?? 0;
 
   return (
     <Link
-      href={
-        isIncomplete
-          ? `/dashboard/practice/session/${session.id}`
-          : `/dashboard/practice/review/${session.id}`
-      }
+      href={href}
       className="group flex items-center gap-4 rounded-2xl p-4 border transition-all duration-200 hover:scale-[1.01]"
       style={{
         background: isIncomplete ? "var(--spark-ai-bg)" : "var(--card)",
@@ -199,7 +157,7 @@ function SessionCard({ session }: { session: (typeof RECENT_SESSIONS)[0] }) {
             className="font-heading font-bold text-sm truncate"
             style={{ color: "var(--foreground)" }}
           >
-            {session.category}
+            {categoryLabel(session.categories)}
           </span>
           {isIncomplete && (
             <Badge
@@ -217,11 +175,11 @@ function SessionCard({ session }: { session: (typeof RECENT_SESSIONS)[0] }) {
           className="text-xs mt-0.5 block"
           style={{ color: "var(--muted-foreground)" }}
         >
-          {session.date} · {session.answered}/{session.total} items
+          {session.dateLabel} &middot; {session.answered}/{session.total} items
         </span>
 
         {/* mini progress for incomplete */}
-        {isIncomplete && (
+        {isIncomplete && session.total > 0 && (
           <div
             className="mt-2 h-1.5 rounded-full overflow-hidden"
             style={{ background: "var(--muted)" }}
@@ -229,7 +187,7 @@ function SessionCard({ session }: { session: (typeof RECENT_SESSIONS)[0] }) {
             <div
               className="h-full rounded-full"
               style={{
-                width: `${(session.answered / session.total) * 100}%`,
+                width: `${Math.min(100, (session.answered / session.total) * 100)}%`,
                 background: "var(--spark-ai-text)",
               }}
             />
@@ -287,23 +245,161 @@ function SessionCard({ session }: { session: (typeof RECENT_SESSIONS)[0] }) {
   );
 }
 
+function HighlightCard({
+  kind,
+  category,
+}: {
+  kind: "weak" | "strong";
+  category: CategoryStat;
+}) {
+  const isWeak = kind === "weak";
+  return (
+    <div
+      className="flex-1 rounded-3xl border p-5 flex flex-col justify-between gap-3"
+      style={{
+        background: isWeak ? "var(--spark-wrong-bg)" : "var(--spark-correct-bg)",
+        borderColor: isWeak
+          ? "var(--spark-wrong-border)"
+          : "var(--spark-correct-border)",
+      }}
+    >
+      <div className="flex items-center gap-2">
+        {isWeak ? (
+          <TrendingDown size={14} style={{ color: "var(--spark-wrong-text)" }} />
+        ) : (
+          <Star size={14} style={{ color: "var(--spark-correct-text)" }} />
+        )}
+        <span
+          className="text-xs font-bold uppercase tracking-wider"
+          style={{
+            color: isWeak
+              ? "var(--spark-wrong-text)"
+              : "var(--spark-correct-text)",
+          }}
+        >
+          {isWeak ? "Needs Work" : "Strongest"}
+        </span>
+      </div>
+      <div>
+        <p
+          className="font-heading text-base font-bold leading-tight"
+          style={{
+            color: isWeak
+              ? "var(--spark-wrong-text)"
+              : "var(--spark-correct-text)",
+          }}
+        >
+          {category.category}
+        </p>
+        <p className="text-xs mt-0.5" style={{ color: "var(--muted-foreground)" }}>
+          {category.accuracy}% accuracy &middot;{" "}
+          {isWeak ? "Needs more reps" : "Keep it sharp"}
+        </p>
+      </div>
+      <Link href="/dashboard/practice/setup">
+        <Button
+          size="sm"
+          variant="outline"
+          className="w-full rounded-xl gap-1 text-xs font-bold border transition-colors"
+          style={{
+            borderColor: isWeak
+              ? "var(--spark-wrong-border)"
+              : "var(--spark-correct-border)",
+            color: isWeak
+              ? "var(--spark-wrong-text)"
+              : "var(--spark-correct-text)",
+            background: "transparent",
+          }}
+        >
+          {isWeak ? "Practice Now" : "Keep Practicing"} <ArrowRight size={12} />
+        </Button>
+      </Link>
+    </div>
+  );
+}
+
+function SkeletonBlock({ className }: { className: string }) {
+  return (
+    <div
+      className={`rounded-2xl animate-pulse ${className}`}
+      style={{ background: "var(--muted)" }}
+    />
+  );
+}
+
+function HubSkeleton() {
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[0, 1, 2, 3].map((i) => (
+          <SkeletonBlock key={i} className="h-[68px]" />
+        ))}
+      </div>
+      <div className="grid sm:grid-cols-5 gap-4">
+        <SkeletonBlock className="sm:col-span-3 h-56" />
+        <SkeletonBlock className="sm:col-span-2 h-56" />
+      </div>
+      <div className="flex flex-col gap-2">
+        {[0, 1, 2].map((i) => (
+          <SkeletonBlock key={i} className="h-[72px]" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SectionHeading({
+  icon,
+  children,
+}: {
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      {icon}
+      <h2
+        className="font-heading text-sm font-bold uppercase tracking-wider"
+        style={{ color: "var(--foreground)" }}
+      >
+        {children}
+      </h2>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PracticeHubPage() {
   const [hovering, setHovering] = useState(false);
+  const [data, setData] = useState<PracticeHubData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getPracticeHubData()
+      .then((res) => {
+        if (res.error) setError(res.error);
+        else setData(res.data);
+      })
+      .catch(() => setError("Could not load practice hub."))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const hasCategoryData = (data?.categoryStats.length ?? 0) > 0;
+  const showStrongest =
+    data?.strongest != null &&
+    data?.weakest != null &&
+    data.strongest.category !== data.weakest.category;
 
   return (
-    <div
-      className="min-h-screen w-full"
-      style={{ background: "var(--background)" }}
-    >
-      {/* ── Decorative gradient blob (top-right) ────────────── */}
+    <div className="min-h-screen w-full" style={{ background: "var(--background)" }}>
+      {/* ── Decorative gradient blobs ──────────────────────── */}
       <div
         aria-hidden
         className="pointer-events-none fixed top-0 right-0 w-[520px] h-[420px] opacity-30 blur-[120px] rounded-full"
         style={{
-          background:
-            "radial-gradient(circle, var(--primary) 0%, transparent 70%)",
+          background: "radial-gradient(circle, var(--primary) 0%, transparent 70%)",
           transform: "translate(30%, -30%)",
         }}
       />
@@ -311,8 +407,7 @@ export default function PracticeHubPage() {
         aria-hidden
         className="pointer-events-none fixed bottom-0 left-0 w-[400px] h-[400px] opacity-20 blur-[100px] rounded-full"
         style={{
-          background:
-            "radial-gradient(circle, var(--secondary) 0%, transparent 70%)",
+          background: "radial-gradient(circle, var(--secondary) 0%, transparent 70%)",
           transform: "translate(-40%, 40%)",
         }}
       />
@@ -331,11 +426,7 @@ export default function PracticeHubPage() {
         {/* ── Header ────────────────────────────────────────── */}
         <header className="flex flex-col gap-1">
           <div className="flex items-center gap-2 mb-1">
-            <BookOpen
-              size={18}
-              style={{ color: "var(--primary)" }}
-              strokeWidth={2.2}
-            />
+            <BookOpen size={18} style={{ color: "var(--primary)" }} strokeWidth={2.2} />
             <span
               className="text-xs uppercase tracking-widest font-medium"
               style={{ color: "var(--primary)" }}
@@ -369,7 +460,6 @@ export default function PracticeHubPage() {
             borderColor: "transparent",
           }}
         >
-          {/* subtle grid overlay */}
           <div
             aria-hidden
             className="absolute inset-0 opacity-10"
@@ -397,264 +487,223 @@ export default function PracticeHubPage() {
               onMouseEnter={() => setHovering(true)}
               onMouseLeave={() => setHovering(false)}
               className="rounded-2xl gap-2 font-heading font-bold text-base transition-all duration-200 shadow-lg hover:shadow-2xl hover:scale-105"
-              style={{
-                background: "white",
-                color: "var(--primary)",
-              }}
+              style={{ background: "white", color: "var(--primary)" }}
             >
-              <Play
-                size={17}
-                fill={hovering ? "var(--primary)" : "var(--primary)"}
-                strokeWidth={0}
-              />
+              <Play size={17} fill="var(--primary)" strokeWidth={0} />
               Begin Practice
-              <ArrowRight size={16} className={hovering ? "translate-x-1" : ""} style={{ transition: "transform 0.2s" }} />
+              <ArrowRight
+                size={16}
+                className={hovering ? "translate-x-1" : ""}
+                style={{ transition: "transform 0.2s" }}
+              />
             </Button>
           </Link>
         </div>
 
-        {/* ── Stats row ─────────────────────────────────────── */}
-        <section className="flex flex-col gap-3">
-          <div className="flex items-center gap-2">
-            <BarChart3 size={14} style={{ color: "var(--primary)" }} />
-            <h2
-              className="font-heading text-sm font-bold uppercase tracking-wider"
-              style={{ color: "var(--foreground)" }}
-            >
-              Your Stats
-            </h2>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatPill
-              icon={<CheckCircle2 size={16} />}
-              value={STATS.totalAnswered.toLocaleString()}
-              label="Items Answered"
-            />
-            <StatPill
-              icon={<Target size={16} />}
-              value={`${STATS.accuracy}%`}
-              label="Overall Accuracy"
-              accent
-            />
-            <StatPill
-              icon={<Flame size={16} />}
-              value={`${STATS.streak} days`}
-              label="Current Streak"
-            />
-            <StatPill
-              icon={<Zap size={16} />}
-              value={STATS.xp.toLocaleString()}
-              label="Total XP"
-              accent
-            />
-          </div>
-        </section>
-
-        {/* ── Category breakdown + weak/strong ──────────────── */}
-        <section className="grid sm:grid-cols-5 gap-4">
-          {/* breakdown bars – wider col */}
+        {/* ── Data sections ──────────────────────────────────── */}
+        {loading ? (
+          <HubSkeleton />
+        ) : error || !data ? (
           <div
-            className="sm:col-span-3 rounded-3xl border p-5 flex flex-col gap-4"
+            className="rounded-3xl border p-8 flex flex-col items-center gap-3 text-center"
             style={{ background: "var(--card)", borderColor: "var(--border)" }}
           >
-            <div className="flex items-center gap-2">
-              <TrendingUp size={14} style={{ color: "var(--primary)" }} />
-              <h3
-                className="font-heading text-sm font-bold uppercase tracking-wider"
-                style={{ color: "var(--foreground)" }}
+            <XCircle size={32} style={{ color: "var(--spark-wrong-text)" }} />
+            <p
+              className="font-heading font-bold"
+              style={{ color: "var(--foreground)" }}
+            >
+              Could not load your practice stats
+            </p>
+            <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
+              {error ?? "Please try refreshing the page."}
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* ── Stats row ───────────────────────────────────── */}
+            <section className="flex flex-col gap-3">
+              <SectionHeading
+                icon={<BarChart3 size={14} style={{ color: "var(--primary)" }} />}
               >
-                Category Accuracy
-              </h3>
-            </div>
-            <div className="flex flex-col gap-3">
-              {CATEGORY_BREAKDOWN.map((c) => (
-                <CategoryBar key={c.label} {...c} />
-              ))}
-            </div>
-          </div>
-
-          {/* weak / strong highlight – narrower col */}
-          <div className="sm:col-span-2 flex flex-col gap-3">
-            {/* weakest */}
-            <div
-              className="flex-1 rounded-3xl border p-5 flex flex-col justify-between gap-3"
-              style={{
-                background: "var(--spark-wrong-bg)",
-                borderColor: "var(--spark-wrong-border)",
-              }}
-            >
-              <div className="flex items-center gap-2">
-                <TrendingDown
-                  size={14}
-                  style={{ color: "var(--spark-wrong-text)" }}
+                Your Stats
+              </SectionHeading>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <StatPill
+                  icon={<CheckCircle2 size={16} />}
+                  value={data.totalAnswered.toLocaleString()}
+                  label="Items Answered"
                 />
-                <span
-                  className="text-xs font-bold uppercase tracking-wider"
-                  style={{ color: "var(--spark-wrong-text)" }}
-                >
-                  Needs Work
-                </span>
-              </div>
-              <div>
-                <p
-                  className="font-heading text-base font-bold leading-tight"
-                  style={{ color: "var(--spark-wrong-text)" }}
-                >
-                  {STATS.weakestCategory}
-                </p>
-                <p
-                  className="text-xs mt-0.5"
-                  style={{ color: "var(--muted-foreground)" }}
-                >
-                  51% accuracy · Needs more reps
-                </p>
-              </div>
-              <Link href="/dashboard/practice/setup?category=numerical-reasoning">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="w-full rounded-xl gap-1 text-xs font-bold border transition-colors hover:bg-[var(--spark-wrong-border)]"
-                  style={{
-                    borderColor: "var(--spark-wrong-border)",
-                    color: "var(--spark-wrong-text)",
-                    background: "transparent",
-                  }}
-                >
-                  Practice Now <ArrowRight size={12} />
-                </Button>
-              </Link>
-            </div>
-
-            {/* strongest */}
-            <div
-              className="flex-1 rounded-3xl border p-5 flex flex-col justify-between gap-3"
-              style={{
-                background: "var(--spark-correct-bg)",
-                borderColor: "var(--spark-correct-border)",
-              }}
-            >
-              <div className="flex items-center gap-2">
-                <Star
-                  size={14}
-                  style={{ color: "var(--spark-correct-text)" }}
+                <StatPill
+                  icon={<Target size={16} />}
+                  value={`${data.overallAccuracy}%`}
+                  label="Overall Accuracy"
+                  accent
                 />
-                <span
-                  className="text-xs font-bold uppercase tracking-wider"
-                  style={{ color: "var(--spark-correct-text)" }}
-                >
-                  Strongest
-                </span>
+                <StatPill
+                  icon={<Flame size={16} />}
+                  value={`${data.streak} ${data.streak === 1 ? "day" : "days"}`}
+                  label="Current Streak"
+                />
+                <StatPill
+                  icon={<Zap size={16} />}
+                  value={data.xp.toLocaleString()}
+                  label="Total XP"
+                  accent
+                />
               </div>
-              <div>
-                <p
-                  className="font-heading text-base font-bold leading-tight"
-                  style={{ color: "var(--spark-correct-text)" }}
-                >
-                  {STATS.strongestCategory}
-                </p>
-                <p
-                  className="text-xs mt-0.5"
-                  style={{ color: "var(--muted-foreground)" }}
-                >
-                  87% accuracy · Keep it sharp
-                </p>
-              </div>
-              <Link href="/dashboard/practice/setup?category=verbal-analogies">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="w-full rounded-xl gap-1 text-xs font-bold border transition-colors"
-                  style={{
-                    borderColor: "var(--spark-correct-border)",
-                    color: "var(--spark-correct-text)",
-                    background: "transparent",
-                  }}
-                >
-                  Keep Practicing <ArrowRight size={12} />
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </section>
+            </section>
 
-        {/* ── Recent sessions ────────────────────────────────── */}
-        <section className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Clock size={14} style={{ color: "var(--primary)" }} />
-              <h2
-                className="font-heading text-sm font-bold uppercase tracking-wider"
-                style={{ color: "var(--foreground)" }}
+            {/* ── Category breakdown + weak/strong ────────────── */}
+            {hasCategoryData ? (
+              <section className="grid sm:grid-cols-5 gap-4">
+                <div
+                  className="sm:col-span-3 rounded-3xl border p-5 flex flex-col gap-4"
+                  style={{ background: "var(--card)", borderColor: "var(--border)" }}
+                >
+                  <SectionHeading
+                    icon={
+                      <TrendingUp size={14} style={{ color: "var(--primary)" }} />
+                    }
+                  >
+                    Category Accuracy
+                  </SectionHeading>
+                  <div className="flex flex-col gap-3">
+                    {data.categoryStats.map((c) => (
+                      <CategoryBar
+                        key={c.category}
+                        label={c.category}
+                        pct={c.accuracy}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="sm:col-span-2 flex flex-col gap-3">
+                  {data.weakest && (
+                    <HighlightCard kind="weak" category={data.weakest} />
+                  )}
+                  {showStrongest && data.strongest && (
+                    <HighlightCard kind="strong" category={data.strongest} />
+                  )}
+                </div>
+              </section>
+            ) : (
+              <section
+                className="rounded-3xl border p-8 flex flex-col items-center gap-2 text-center"
+                style={{ background: "var(--card)", borderColor: "var(--border)" }}
+              >
+                <TrendingUp size={28} style={{ color: "var(--primary)" }} />
+                <p
+                  className="font-heading font-bold"
+                  style={{ color: "var(--foreground)" }}
+                >
+                  No category data yet
+                </p>
+                <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
+                  Finish a practice session and your per-category accuracy will
+                  appear here.
+                </p>
+              </section>
+            )}
+
+            {/* ── Recent sessions ─────────────────────────────── */}
+            <section className="flex flex-col gap-3">
+              <SectionHeading
+                icon={<Clock size={14} style={{ color: "var(--primary)" }} />}
               >
                 Recent Sessions
-              </h2>
-            </div>
-            <Link
-              href="/dashboard/practice/history"
-              className="text-xs flex items-center gap-1 transition-opacity hover:opacity-70"
-              style={{ color: "var(--primary)" }}
-            >
-              View All <ChevronRight size={13} />
-            </Link>
-          </div>
+              </SectionHeading>
 
-          <div className="flex flex-col gap-2">
-            {RECENT_SESSIONS.map((s) => (
-              <SessionCard key={s.id} session={s} />
-            ))}
-          </div>
-        </section>
+              {data.recentSessions.length > 0 ? (
+                <div className="flex flex-col gap-2">
+                  {data.recentSessions.map((s) => (
+                    <SessionCard key={s.practiceId} session={s} />
+                  ))}
+                </div>
+              ) : (
+                <div
+                  className="rounded-2xl border p-6 flex flex-col items-center gap-2 text-center"
+                  style={{ background: "var(--card)", borderColor: "var(--border)" }}
+                >
+                  <BookOpen size={26} style={{ color: "var(--muted-foreground)" }} />
+                  <p
+                    className="font-heading font-bold text-sm"
+                    style={{ color: "var(--foreground)" }}
+                  >
+                    No practice sessions yet
+                  </p>
+                  <p
+                    className="text-xs"
+                    style={{ color: "var(--muted-foreground)" }}
+                  >
+                    Start your first session and it will show up here.
+                  </p>
+                </div>
+              )}
+            </section>
 
-        {/* ── Bottom CTA strip ───────────────────────────────── */}
-        <div
-          className="rounded-2xl border p-4 flex items-center justify-between gap-4"
-          style={{
-            background: "var(--spark-ai-bg)",
-            borderColor: "var(--spark-ai-border)",
-          }}
-        >
-          <div className="flex items-center gap-3">
+            {/* ── Bottom CTA strip ────────────────────────────── */}
             <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+              className="rounded-2xl border p-4 flex items-center justify-between gap-4"
               style={{
-                background: "var(--spark-ai-border)",
-                color: "var(--spark-ai-text)",
+                background: "var(--spark-ai-bg)",
+                borderColor: "var(--spark-ai-border)",
               }}
             >
-              <Trophy size={18} />
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                  style={{
+                    background: "var(--spark-ai-border)",
+                    color: "var(--spark-ai-text)",
+                  }}
+                >
+                  <Trophy size={18} />
+                </div>
+                <div>
+                  <p
+                    className="text-sm font-heading font-bold"
+                    style={{ color: "var(--foreground)" }}
+                  >
+                    Aiming for CSE passers&apos; score?
+                  </p>
+                  <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                    {data.passingGap > 0 ? (
+                      <>
+                        You need 80%+ accuracy across all areas. You&apos;re at{" "}
+                        <strong style={{ color: "var(--spark-ai-text)" }}>
+                          {data.overallAccuracy}%
+                        </strong>{" "}
+                        &mdash; {data.passingGap}% to go!
+                      </>
+                    ) : (
+                      <>
+                        You&apos;re at{" "}
+                        <strong style={{ color: "var(--spark-ai-text)" }}>
+                          {data.overallAccuracy}%
+                        </strong>{" "}
+                        &mdash; above the CSE passing mark. Keep it up!
+                      </>
+                    )}
+                  </p>
+                </div>
+              </div>
+              <Link href="/dashboard/practice/setup" className="shrink-0">
+                <Button
+                  size="sm"
+                  className="rounded-xl gap-1 font-bold text-xs"
+                  style={{
+                    background: "var(--primary)",
+                    color: "var(--primary-foreground)",
+                  }}
+                >
+                  Let&apos;s go <Zap size={13} fill="currentColor" strokeWidth={0} />
+                </Button>
+              </Link>
             </div>
-            <div>
-              <p
-                className="text-sm font-heading font-bold"
-                style={{ color: "var(--foreground)" }}
-              >
-                Aiming for CSE passers' score?
-              </p>
-              <p
-                className="text-xs"
-                style={{ color: "var(--muted-foreground)" }}
-              >
-                You need 80%+ accuracy across all areas. You&apos;re at{" "}
-                <strong style={{ color: "var(--spark-ai-text)" }}>
-                  {STATS.accuracy}%
-                </strong>{" "}
-                — keep pushing!
-              </p>
-            </div>
-          </div>
-          <Link href="/dashboard/practice/setup" className="shrink-0">
-            <Button
-              size="sm"
-              className="rounded-xl gap-1 font-bold text-xs"
-              style={{
-                background: "var(--primary)",
-                color: "var(--primary-foreground)",
-              }}
-            >
-              Let&apos;s go <Zap size={13} fill="currentColor" strokeWidth={0} />
-            </Button>
-          </Link>
-        </div>
+          </>
+        )}
       </div>
     </div>
   );

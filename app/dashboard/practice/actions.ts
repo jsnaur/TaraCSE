@@ -4,6 +4,9 @@ import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getUserStats, getRecentPracticeSessions } from "@/lib/analytics/server";
+import { CSE_PASSING_SCORE } from "@/lib/analytics/config";
+import type { PracticeHubData } from "./types";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -635,4 +638,50 @@ export async function getResumeSessionData(practiceId: string) {
       difficulty: session.difficulty as string,
     },
   };
+}
+
+/**
+ * Aggregated snapshot for the Practice hub landing page: lifetime stats, the
+ * per-category accuracy breakdown, weakest/strongest areas, and the caller's
+ * most recent practice sessions. A thin projection over the shared analytics
+ * layer — no data is stored, everything is derived live.
+ */
+export async function getPracticeHubData(): Promise<{
+  data: PracticeHubData | null;
+  error: string | null;
+}> {
+  try {
+    const [stats, recentSessions] = await Promise.all([
+      getUserStats(),
+      getRecentPracticeSessions(6),
+    ]);
+    if (!stats) return { data: null, error: "Not authenticated" };
+
+    // Weakest/strongest are only meaningful for categories actually attempted.
+    const attempted = stats.categoryStats.filter((c) => c.total > 0);
+    const weakest = attempted.length
+      ? attempted.reduce((lo, c) => (c.accuracy < lo.accuracy ? c : lo))
+      : null;
+    const strongest = attempted.length
+      ? attempted.reduce((hi, c) => (c.accuracy > hi.accuracy ? c : hi))
+      : null;
+
+    return {
+      data: {
+        totalAnswered: stats.totalAnswered,
+        overallAccuracy: stats.overallAccuracy,
+        streak: stats.streak,
+        xp: stats.xp,
+        categoryStats: stats.categoryStats,
+        weakest,
+        strongest,
+        recentSessions,
+        passingGap: Math.max(0, CSE_PASSING_SCORE - stats.overallAccuracy),
+      },
+      error: null,
+    };
+  } catch (err) {
+    console.error("getPracticeHubData failed:", err);
+    return { data: null, error: "Could not load practice hub." };
+  }
 }

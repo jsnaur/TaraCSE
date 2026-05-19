@@ -9,7 +9,11 @@ import { useRouter } from "next/navigation";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { getProfile, saveExamCategory } from "./actions";
-import { getDashboardStats, type DashboardStats, type CategoryStat } from "./analytics/actions";
+import { getDashboardStats } from "./analytics/actions";
+import type { DashboardStats } from "./analytics/types";
+import type { CategoryStat } from "@/lib/analytics/types";
+import { getLeaderboardData } from "./leaderboard/actions";
+import type { LeaderboardData } from "@/lib/analytics/types";
 
 type ExamLevel = "professional" | "subprofessional";
 
@@ -201,6 +205,14 @@ function OnboardingModal({ onComplete }: { onComplete: (level: ExamLevel) => voi
   );
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return name.trim().slice(0, 2).toUpperCase() || "??";
+}
+
 // ─── Stat card skeleton ───────────────────────────────────────────────────────
 
 function StatSkeleton() {
@@ -224,6 +236,7 @@ export default function DashboardPage() {
   const [username, setUsername] = useState("Student");
   const [examCategory, setExamCategory] = useState<string | null>(null);
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardData | null>(null);
 
   useEffect(() => {
     async function loadProfile() {
@@ -250,8 +263,14 @@ export default function DashboardPage() {
       setStatsLoading(false);
     }
 
+    async function loadLeaderboard() {
+      const { data } = await getLeaderboardData(3);
+      setLeaderboard(data);
+    }
+
     loadProfile();
     loadStats();
+    loadLeaderboard();
   }, [router]);
 
   function handleOnboardingComplete(level: ExamLevel) {
@@ -543,27 +562,76 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* Leaderboard stub */}
+              {/* Top reviewees — live XP leaderboard preview */}
               <div>
                 <div className="flex items-center justify-between mb-2.5">
                   <h3 className="font-heading text-[13px] font-bold tracking-tight">Top reviewees</h3>
                   <Link href="/dashboard/leaderboard" className="text-[11px] text-primary hover:underline">Full board &rarr;</Link>
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <div className="flex items-center gap-2.5 px-3 py-2 bg-card border border-border rounded-lg">
-                    <div className="font-heading text-[13px] font-extrabold min-w-[20px] text-accent">1</div>
-                    <div className="w-6 h-6 rounded-full bg-[#2A1F08] text-[#F0B060] flex items-center justify-center text-[9px] font-bold font-heading shrink-0">MA</div>
-                    <div className="text-xs font-semibold flex-1">Maria A.</div>
-                    <div className="text-[11px] font-bold text-primary/80">3,840 XP</div>
-                  </div>
-                  <div className="flex items-center gap-2.5 px-3 py-2 bg-primary/10 border border-primary rounded-lg">
-                    <div className="font-heading text-[13px] font-extrabold min-w-[20px] text-primary">—</div>
-                    <div className="w-6 h-6 rounded-full bg-primary/20 text-primary border-2 border-primary flex items-center justify-center text-[9px] font-bold font-heading shrink-0">
-                      {username.slice(0, 2).toUpperCase()}
+                  {leaderboard === null ? (
+                    Array.from({ length: 3 }).map((_, i) => (
+                      <div key={i} className="flex items-center gap-2.5 px-3 py-2 bg-card border border-border rounded-lg animate-pulse">
+                        <div className="w-5 h-4 rounded bg-muted" />
+                        <div className="w-6 h-6 rounded-full bg-muted shrink-0" />
+                        <div className="h-3 flex-1 bg-muted rounded" />
+                        <div className="h-3 w-12 bg-muted rounded" />
+                      </div>
+                    ))
+                  ) : leaderboard.entries.length === 0 ? (
+                    <div className="bg-card border border-border rounded-lg p-4 text-center">
+                      <p className="text-xs text-muted-foreground">No ranked reviewees yet.</p>
                     </div>
-                    <div className="text-xs font-semibold flex-1 text-primary">{username} (you)</div>
-                    <div className="text-[11px] font-bold text-muted-foreground">Coming soon</div>
-                  </div>
+                  ) : (
+                    <>
+                      {leaderboard.entries.map((entry) => (
+                        <div
+                          key={entry.userId}
+                          className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border ${
+                            entry.isCurrentUser
+                              ? "bg-primary/10 border-primary"
+                              : "bg-card border-border"
+                          }`}
+                        >
+                          <div
+                            className={`font-heading text-[13px] font-extrabold min-w-[20px] ${
+                              entry.position === 1 ? "text-accent" : "text-muted-foreground"
+                            }`}
+                          >
+                            {entry.position}
+                          </div>
+                          <div className="w-6 h-6 rounded-full bg-primary/15 text-primary flex items-center justify-center text-[9px] font-bold font-heading shrink-0">
+                            {initialsOf(entry.username)}
+                          </div>
+                          <div className={`text-xs font-semibold flex-1 truncate ${entry.isCurrentUser ? "text-primary" : ""}`}>
+                            {entry.username}{entry.isCurrentUser ? " (you)" : ""}
+                          </div>
+                          <div className="text-[11px] font-bold text-primary/80 shrink-0">
+                            {entry.xp.toLocaleString()} XP
+                          </div>
+                        </div>
+                      ))}
+
+                      {/* Caller's own row when they're outside the top 3 */}
+                      {leaderboard.currentUser &&
+                        !leaderboard.entries.some((e) => e.isCurrentUser) && (
+                          <div className="flex items-center gap-2.5 px-3 py-2 bg-primary/10 border border-primary rounded-lg">
+                            <div className="font-heading text-[13px] font-extrabold min-w-[20px] text-primary">
+                              {leaderboard.currentUser.position}
+                            </div>
+                            <div className="w-6 h-6 rounded-full bg-primary/20 text-primary border-2 border-primary flex items-center justify-center text-[9px] font-bold font-heading shrink-0">
+                              {initialsOf(leaderboard.currentUser.username)}
+                            </div>
+                            <div className="text-xs font-semibold flex-1 truncate text-primary">
+                              {leaderboard.currentUser.username} (you)
+                            </div>
+                            <div className="text-[11px] font-bold text-primary/80 shrink-0">
+                              {leaderboard.currentUser.xp.toLocaleString()} XP
+                            </div>
+                          </div>
+                        )}
+                    </>
+                  )}
                 </div>
               </div>
             </div>
