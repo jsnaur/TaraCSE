@@ -7,27 +7,26 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  CheckCircle2,
   XCircle,
   Sparkles,
   Loader2,
   ArrowLeft,
-  ArrowRight,
-  Flag,
   RotateCcw,
   X,
   BookOpen,
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { MathText } from "@/components/ui/math-text";
 import {
   getResumeSessionData,
-  checkPracticeAnswer,
   saveAnswer,
   completeSession,
   getUserMonetizationStatus,
 } from "../../actions";
+import { getBookmarkStatus } from "@/app/dashboard/bookmarks/actions";
+import { useQuestionSession } from "@/components/question/useQuestionSession";
+import { QuestionPlayer } from "@/components/question/QuestionPlayer";
+import { NavDot } from "@/components/question/NavDot";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -40,67 +39,6 @@ type Question = {
   options: Option[];
 };
 
-type QuestionState = {
-  selectedId: string | null;
-  correctId: string | null;
-  explanation: string | null;
-  aiHint: string | null;
-  isChecking: boolean;
-};
-
-// ─── Navigator dot ────────────────────────────────────────────────────────────
-
-function NavDot({
-  index,
-  state,
-  isCurrent,
-  isFlagged,
-  onClick,
-}: {
-  index: number;
-  state: QuestionState | undefined;
-  isCurrent: boolean;
-  isFlagged: boolean;
-  onClick: () => void;
-}) {
-  const answered = state?.selectedId != null;
-  const correct = answered && state?.selectedId === state?.correctId;
-
-  return (
-    <button
-      onClick={onClick}
-      title={`Question ${index + 1}`}
-      className="relative w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold font-heading transition-all duration-150 hover:scale-110"
-      style={{
-        background: isCurrent
-          ? "var(--primary)"
-          : answered
-          ? correct
-            ? "var(--spark-correct-bg)"
-            : "var(--spark-wrong-bg)"
-          : "var(--muted)",
-        color: isCurrent
-          ? "var(--primary-foreground)"
-          : answered
-          ? correct
-            ? "var(--spark-correct-text)"
-            : "var(--spark-wrong-text)"
-          : "var(--muted-foreground)",
-        outline: isCurrent ? `2px solid var(--primary)` : "none",
-        outlineOffset: "2px",
-      }}
-    >
-      {index + 1}
-      {isFlagged && (
-        <span
-          className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full"
-          style={{ background: "rgb(245,158,11)" }}
-        />
-      )}
-    </button>
-  );
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ResumeSessionPage() {
@@ -109,7 +47,6 @@ export default function ResumeSessionPage() {
 
   // Data
   const [questions, setQuestions] = useState<Question[]>([]);
-  const [states, setStates] = useState<QuestionState[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -118,21 +55,43 @@ export default function ResumeSessionPage() {
   const [aiUsesLeft, setAiUsesLeft] = useState<number | "unlimited">(3);
   const [showAiPaywall, setShowAiPaywall] = useState(false);
 
+  // Bookmark
+  const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
+
   // Session
-  const [currentIndex, setCurrentIndex] = useState(0);
   const [finished, setFinished] = useState(false);
   const [finalScore, setFinalScore] = useState(0);
   const [loadingAi, setLoadingAi] = useState(false);
-  const [flagged, setFlagged] = useState<Set<number>>(new Set());
   const [examSessionId, setExamSessionId] = useState<string | null>(null);
   const [isCompleting, setIsCompleting] = useState(false);
 
   const sessionStartTime = useRef(Date.now());
-  const questionStartTime = useRef(Date.now());
 
-  useEffect(() => {
-    questionStartTime.current = Date.now();
-  }, [currentIndex]);
+  // ── Question Session Hook ─────────────────────────────────────────────────
+
+  const session = useQuestionSession({
+    mode: "practice",
+    onAnswered: (questionId, selectedId, elapsed) => {
+      if (!examSessionId) return;
+      saveAnswer(examSessionId, questionId, selectedId, elapsed).catch((err) => {
+        console.error("saveAnswer failed", err);
+      });
+    },
+  });
+
+  const {
+    states,
+    currentIndex,
+    setCurrentIndex,
+    initialize,
+    handleSelect,
+    toggleFlag,
+    advance,
+    goPrev,
+    setAiExplanation,
+  } = session;
+
+  // ── Initial Fetch ─────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (!params.sessionId) return;
@@ -143,7 +102,9 @@ export default function ResumeSessionPage() {
     ]).then(([mono, resumeData]) => {
       if (!("error" in mono)) {
         setIsPremium(mono.isPremium ?? false);
-        setAiUsesLeft(mono.remainingAiUses ?? 3);
+        setAiUsesLeft(
+          mono.isPremium ? "unlimited" : (mono.remainingAiUses ?? 3)
+        );
       }
 
       if ("redirectTo" in resumeData && resumeData.redirectTo) {
@@ -157,70 +118,58 @@ export default function ResumeSessionPage() {
         return;
       }
 
+      const qs = resumeData.questions as Question[];
+      const initStates = resumeData.initialStates as {
+        selectedId: string | null;
+        correctId: string | null;
+        explanation: string | null;
+      }[];
+      const startIndex = resumeData.firstUnansweredIndex ?? 0;
+
       setExamSessionId(resumeData.examSessionId ?? null);
-      setQuestions(resumeData.questions as Question[]);
-      setStates(resumeData.initialStates as QuestionState[]);
-      setCurrentIndex(resumeData.firstUnansweredIndex ?? 0);
+      setQuestions(qs);
       sessionStartTime.current = Date.now();
+
+      // Initialize hook with pre-existing answer states from the server
+      initialize(
+        qs.map((q) => q.id),
+        initStates,
+        startIndex
+      );
+
+      // Load bookmarks for all question IDs
+      const ids = qs.map((q) => q.id);
+      if (ids.length > 0) {
+        getBookmarkStatus(ids).then((bResult) => {
+          if (!("error" in bResult)) {
+            setBookmarkedIds(new Set(bResult.bookmarkedIds));
+          }
+        });
+      }
+
       setIsLoading(false);
     });
-  }, [params.sessionId, router]);
+  }, [params.sessionId, router, initialize]);
 
-  // ── Answer handling ──────────────────────────────────────────────────────
+  // ── Complete session ──────────────────────────────────────────────────────
 
-  async function handleSelect(optionId: string) {
-    const s = states[currentIndex];
-    if (!s || s.selectedId !== null || s.isChecking || !examSessionId) return;
-
-    setStates((prev) =>
-      prev.map((st, i) =>
-        i === currentIndex ? { ...st, isChecking: true } : st
-      )
-    );
-
-    const result = await checkPracticeAnswer(questions[currentIndex].id);
-    if ("error" in result) {
-      setStates((prev) =>
-        prev.map((st, i) =>
-          i === currentIndex ? { ...st, isChecking: false } : st
-        )
-      );
-      return;
-    }
-
+  async function handleComplete() {
+    if (!examSessionId || isCompleting) return;
+    setIsCompleting(true);
     const elapsed = Math.round(
-      (Date.now() - questionStartTime.current) / 1000
+      (Date.now() - sessionStartTime.current) / 1000
     );
-
-    setStates((prev) =>
-      prev.map((st, i) =>
-        i === currentIndex
-          ? {
-              ...st,
-              selectedId: optionId,
-              correctId: result.correctId,
-              explanation: result.explanation,
-              isChecking: false,
-            }
-          : st
-      )
-    );
-
-    // Fire-and-forget save
-    saveAnswer(
-      examSessionId,
-      questions[currentIndex].id,
-      optionId,
-      elapsed
-    );
+    const result = await completeSession(examSessionId, questions.length, elapsed);
+    if (result.success) {
+      setFinalScore(result.score);
+      setFinished(true);
+    }
+    setIsCompleting(false);
   }
 
-  // ── KOT AI ──────────────────────────────────────────────────────────────
+  // ── KOT AI ────────────────────────────────────────────────────────────────
 
-  async function handleAiHint() {
-    const s = states[currentIndex];
-    if (!s || s.aiHint || loadingAi) return;
-
+  async function handleAiHint(questionId: string) {
     if (!isPremium && typeof aiUsesLeft === "number" && aiUsesLeft <= 0) {
       setShowAiPaywall(true);
       return;
@@ -231,7 +180,7 @@ export default function ResumeSessionPage() {
       const res = await fetch("/api/ai/kot-ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ questionId: questions[currentIndex].id }),
+        body: JSON.stringify({ questionId }),
       });
 
       const data = await res.json();
@@ -248,59 +197,32 @@ export default function ResumeSessionPage() {
           ? `KOT AI error: ${data.error}`
           : "KOT AI is unavailable right now. Please try again later.";
 
-      setStates((prev) =>
-        prev.map((st, i) =>
-          i === currentIndex ? { ...st, aiHint: hint } : st
-        )
-      );
+      setAiExplanation(currentIndex, hint);
 
       if (res.ok && typeof data.remaining === "number") {
         setAiUsesLeft(data.remaining);
       }
     } catch {
-      setStates((prev) =>
-        prev.map((st, i) =>
-          i === currentIndex
-            ? {
-                ...st,
-                aiHint:
-                  "KOT AI is unavailable right now. Please try again later.",
-              }
-            : st
-        )
+      setAiExplanation(
+        currentIndex,
+        "KOT AI is unavailable right now. Please try again later."
       );
     } finally {
       setLoadingAi(false);
     }
   }
 
-  // ── Complete session ─────────────────────────────────────────────────────
+  // ── Next: advance or complete ─────────────────────────────────────────────
 
-  async function handleComplete() {
-    if (!examSessionId || isCompleting) return;
-    setIsCompleting(true);
-    const elapsed = Math.round((Date.now() - sessionStartTime.current) / 1000);
-    const result = await completeSession(
-      examSessionId,
-      questions.length,
-      elapsed
-    );
-    if (result.success) {
-      setFinalScore(result.score);
-      setFinished(true);
+  function handleNext() {
+    if (currentIndex < questions.length - 1) {
+      advance();
+    } else {
+      handleComplete();
     }
-    setIsCompleting(false);
   }
 
-  function toggleFlag(index: number) {
-    setFlagged((prev) => {
-      const next = new Set(prev);
-      next.has(index) ? next.delete(index) : next.add(index);
-      return next;
-    });
-  }
-
-  // ── Loading ──────────────────────────────────────────────────────────────
+  // ── Loading ───────────────────────────────────────────────────────────────
 
   if (isLoading) {
     return (
@@ -324,7 +246,7 @@ export default function ResumeSessionPage() {
     );
   }
 
-  // ── Error ────────────────────────────────────────────────────────────────
+  // ── Error ─────────────────────────────────────────────────────────────────
 
   if (errorMsg || questions.length === 0) {
     return (
@@ -359,7 +281,7 @@ export default function ResumeSessionPage() {
     );
   }
 
-  // ── Finished screen ──────────────────────────────────────────────────────
+  // ── Finished screen ───────────────────────────────────────────────────────
 
   if (finished) {
     const pct = Math.round((finalScore / questions.length) * 100);
@@ -436,10 +358,7 @@ export default function ResumeSessionPage() {
               variant="outline"
               className="w-full rounded-2xl h-12 font-heading font-semibold text-base"
               onClick={() => router.push("/dashboard/practice")}
-              style={{
-                borderColor: "var(--border)",
-                color: "var(--foreground)",
-              }}
+              style={{ borderColor: "var(--border)", color: "var(--foreground)" }}
             >
               <BookOpen size={16} className="mr-2" />
               Return to Practice Hub
@@ -450,20 +369,30 @@ export default function ResumeSessionPage() {
     );
   }
 
-  // ── Main practice UI ─────────────────────────────────────────────────────
+  // ── Main UI ───────────────────────────────────────────────────────────────
 
   const q = questions[currentIndex];
-  const s = states[currentIndex];
-  const answered = states.filter((st) => st.selectedId !== null).length;
+  const currentState = states[currentIndex];
+
+  // Guard: hook state not yet initialized
+  if (!currentState || !q) {
+    return (
+      <div
+        className="fixed inset-0 flex items-center justify-center"
+        style={{ background: "var(--background)" }}
+      >
+        <Loader2 className="w-10 h-10 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  const answered = states.filter((s) => s.selectedId !== null).length;
   const progressPct = Math.round((answered / questions.length) * 100);
 
   return (
     <div
       className="fixed inset-0 flex flex-col lg:grid lg:grid-cols-[1fr_280px] overflow-hidden"
-      style={{
-        background: "var(--background)",
-        color: "var(--foreground)",
-      }}
+      style={{ background: "var(--background)", color: "var(--foreground)" }}
     >
       {/* ══════════════════════════════════════════
           LEFT: Question area
@@ -474,11 +403,8 @@ export default function ResumeSessionPage() {
       >
         {/* Header */}
         <header
-          className="shrink-0 flex items-center justify-between px-5 py-3.5 border-b"
-          style={{
-            background: "var(--card)",
-            borderColor: "var(--border)",
-          }}
+          className="shrink-0 flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 border-b"
+          style={{ background: "var(--card)", borderColor: "var(--border)" }}
         >
           <Link
             href="/dashboard/practice"
@@ -532,337 +458,45 @@ export default function ResumeSessionPage() {
 
         {/* Progress bar */}
         <div
-          className="shrink-0 px-5 py-2 border-b"
+          className="shrink-0 px-4 sm:px-5 py-2 border-b"
           style={{ background: "var(--card)", borderColor: "var(--border)" }}
         >
           <Progress value={progressPct} className="h-1.5" />
           <div className="flex justify-between mt-1">
-            <span
-              className="text-xs"
-              style={{ color: "var(--muted-foreground)" }}
-            >
+            <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
               {answered} answered
             </span>
-            <span
-              className="text-xs"
-              style={{ color: "var(--muted-foreground)" }}
-            >
+            <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
               {questions.length - answered} remaining
             </span>
           </div>
         </div>
 
-        {/* Scrollable question body */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="max-w-2xl mx-auto px-5 py-7 flex flex-col gap-6">
-            {/* Category label + flag */}
-            <div className="flex items-center justify-between">
-              <span
-                className="text-xs font-bold uppercase tracking-widest"
-                style={{ color: "var(--primary)" }}
-              >
-                {q.category}
-              </span>
-              <button
-                onClick={() => toggleFlag(currentIndex)}
-                className="flex items-center gap-1.5 text-xs rounded-xl px-2.5 py-1.5 transition-colors"
-                style={{
-                  background: flagged.has(currentIndex)
-                    ? "rgba(245,158,11,0.12)"
-                    : "transparent",
-                  color: flagged.has(currentIndex)
-                    ? "rgb(245,158,11)"
-                    : "var(--muted-foreground)",
-                }}
-              >
-                <Flag
-                  size={12}
-                  fill={flagged.has(currentIndex) ? "currentColor" : "none"}
-                />
-                {flagged.has(currentIndex) ? "Flagged" : "Flag"}
-              </button>
-            </div>
-
-            {/* Question text */}
-            <AnimatePresence mode="wait">
-              <motion.p
-                key={currentIndex}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.18 }}
-                className="font-heading text-lg sm:text-xl font-semibold leading-relaxed"
-                style={{ color: "var(--foreground)" }}
-              >
-                <MathText text={q.text} />
-              </motion.p>
-            </AnimatePresence>
-
-            {/* Options */}
-            <div className="flex flex-col gap-2.5">
-              {q.options.map((opt) => {
-                const isSelected = s.selectedId === opt.id;
-                const isCorrectOpt = s.correctId === opt.id;
-                const hasAnswered = s.selectedId !== null;
-
-                let bg = "var(--card)";
-                let borderColor = "var(--border)";
-                let textColor = "var(--foreground)";
-                let icon: React.ReactNode = null;
-
-                if (hasAnswered) {
-                  if (isSelected && isCorrectOpt) {
-                    bg = "var(--spark-correct-bg)";
-                    borderColor = "var(--spark-correct-border)";
-                    textColor = "var(--spark-correct-text)";
-                    icon = (
-                      <CheckCircle2
-                        size={16}
-                        style={{ color: "var(--spark-correct-text)" }}
-                        className="shrink-0 mt-0.5"
-                      />
-                    );
-                  } else if (isSelected && !isCorrectOpt) {
-                    bg = "var(--spark-wrong-bg)";
-                    borderColor = "var(--spark-wrong-border)";
-                    textColor = "var(--spark-wrong-text)";
-                    icon = (
-                      <XCircle
-                        size={16}
-                        style={{ color: "var(--spark-wrong-text)" }}
-                        className="shrink-0 mt-0.5"
-                      />
-                    );
-                  } else if (!isSelected && isCorrectOpt) {
-                    bg = "var(--spark-correct-bg)";
-                    borderColor = "var(--spark-correct-border)";
-                    textColor = "var(--spark-correct-text)";
-                    icon = (
-                      <CheckCircle2
-                        size={16}
-                        style={{
-                          color: "var(--spark-correct-text)",
-                          opacity: 0.6,
-                        }}
-                        className="shrink-0 mt-0.5"
-                      />
-                    );
-                  } else {
-                    bg = "var(--muted)";
-                    borderColor = "transparent";
-                    textColor = "var(--muted-foreground)";
-                  }
-                }
-
-                return (
-                  <button
-                    key={opt.id}
-                    onClick={() => handleSelect(opt.id)}
-                    disabled={hasAnswered || s.isChecking}
-                    className={cn(
-                      "w-full flex items-start gap-3 rounded-2xl px-4 py-3.5 border text-left transition-all duration-150",
-                      !hasAnswered &&
-                        !s.isChecking &&
-                        "hover:scale-[1.01] hover:border-[var(--primary)]"
-                    )}
-                    style={{
-                      background: bg,
-                      borderColor,
-                      cursor: hasAnswered ? "default" : "pointer",
-                    }}
-                  >
-                    <span
-                      className="w-7 h-7 rounded-xl flex items-center justify-center text-sm font-heading font-bold shrink-0 mt-0.5"
-                      style={{
-                        background: hasAnswered ? borderColor : "var(--muted)",
-                        color: hasAnswered
-                          ? textColor
-                          : "var(--muted-foreground)",
-                      }}
-                    >
-                      {opt.id.toUpperCase()}
-                    </span>
-                    <MathText
-                      text={opt.text}
-                      className="flex-1 text-sm leading-relaxed"
-                      style={{ color: textColor }}
-                    />
-                    {s.isChecking && !hasAnswered && (
-                      <Loader2
-                        size={15}
-                        className="animate-spin shrink-0 mt-0.5"
-                        style={{ color: "var(--primary)" }}
-                      />
-                    )}
-                    {icon}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Explanation card */}
-            <AnimatePresence>
-              {s.explanation && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.22 }}
-                  className="rounded-2xl p-4 border"
-                  style={{
-                    background:
-                      s.selectedId === s.correctId
-                        ? "var(--spark-correct-bg)"
-                        : "var(--spark-wrong-bg)",
-                    borderColor:
-                      s.selectedId === s.correctId
-                        ? "var(--spark-correct-border)"
-                        : "var(--spark-wrong-border)",
-                  }}
-                >
-                  <p
-                    className="text-xs font-bold uppercase tracking-wider mb-2"
-                    style={{
-                      color:
-                        s.selectedId === s.correctId
-                          ? "var(--spark-correct-text)"
-                          : "var(--spark-wrong-text)",
-                    }}
-                  >
-                    {s.selectedId === s.correctId ? "Correct!" : "Explanation"}
-                  </p>
-                  <MathText
-                    text={s.explanation}
-                    className="text-sm leading-relaxed block"
-                    style={{ color: "var(--foreground)" }}
-                  />
-
-                  {!s.aiHint && (
-                    <button
-                      onClick={handleAiHint}
-                      disabled={loadingAi}
-                      className="mt-3 flex items-center gap-1.5 text-xs rounded-xl px-3 py-1.5 border transition-opacity hover:opacity-80 disabled:opacity-50"
-                      style={{
-                        background: "var(--spark-ai-bg)",
-                        borderColor: "var(--spark-ai-border)",
-                        color: "var(--spark-ai-text)",
-                      }}
-                    >
-                      {loadingAi ? (
-                        <Loader2 size={11} className="animate-spin" />
-                      ) : (
-                        <Sparkles size={11} />
-                      )}
-                      Ask KOT AI
-                      {!isPremium && aiUsesLeft !== "unlimited" && (
-                        <span className="ml-1 opacity-60">
-                          ({aiUsesLeft} left)
-                        </span>
-                      )}
-                    </button>
-                  )}
-
-                  {s.aiHint && (
-                    <div
-                      className="mt-3 rounded-xl p-3 border text-sm"
-                      style={{
-                        background: "var(--spark-ai-bg)",
-                        borderColor: "var(--spark-ai-border)",
-                        color: "var(--spark-ai-text)",
-                      }}
-                    >
-                      <div className="flex items-center gap-1.5 mb-1.5">
-                        <Sparkles size={12} />
-                        <span className="text-xs font-bold uppercase tracking-wider">
-                          KOT AI
-                        </span>
-                      </div>
-                      <MathText
-                        text={s.aiHint}
-                        block
-                        className="whitespace-pre-line leading-relaxed"
-                      />
-                    </div>
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+        {/* QuestionPlayer — takes remaining height */}
+        <div className="flex-1 overflow-hidden">
+          <QuestionPlayer
+            question={q}
+            state={currentState}
+            mode="practice"
+            questionNumber={currentIndex + 1}
+            totalQuestions={questions.length}
+            canGoPrev={currentIndex > 0}
+            canGoNext={currentIndex < questions.length - 1 || !isCompleting}
+            onSelect={handleSelect}
+            onPrev={goPrev}
+            onNext={handleNext}
+            onToggleFlag={() => toggleFlag(currentIndex)}
+            isBookmarked={bookmarkedIds.has(q.id)}
+            onRequestAiHint={
+              currentState.correctId !== null
+                ? () => handleAiHint(q.id)
+                : undefined
+            }
+            loadingAi={loadingAi}
+            isPremium={isPremium}
+            aiUsesLeft={aiUsesLeft}
+          />
         </div>
-
-        {/* Footer navigation */}
-        <footer
-          className="shrink-0 flex items-center justify-between gap-3 px-5 py-3 border-t"
-          style={{ background: "var(--card)", borderColor: "var(--border)" }}
-        >
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
-            disabled={currentIndex === 0}
-            className="rounded-xl gap-1.5 font-heading font-bold"
-            style={{ borderColor: "var(--border)", color: "var(--foreground)" }}
-          >
-            <ArrowLeft size={14} />
-            Prev
-          </Button>
-
-          <div
-            className="flex items-center gap-1 flex-wrap justify-center"
-            style={{ maxWidth: 200 }}
-          >
-            {questions
-              .slice(
-                Math.max(0, currentIndex - 2),
-                Math.min(questions.length, currentIndex + 3)
-              )
-              .map((_, relIdx) => {
-                const absIdx = Math.max(0, currentIndex - 2) + relIdx;
-                return (
-                  <NavDot
-                    key={absIdx}
-                    index={absIdx}
-                    state={states[absIdx]}
-                    isCurrent={absIdx === currentIndex}
-                    isFlagged={flagged.has(absIdx)}
-                    onClick={() => setCurrentIndex(absIdx)}
-                  />
-                );
-              })}
-          </div>
-
-          <Button
-            size="sm"
-            onClick={() => {
-              if (currentIndex < questions.length - 1) {
-                setCurrentIndex((i) => i + 1);
-              } else {
-                handleComplete();
-              }
-            }}
-            disabled={isCompleting}
-            className="rounded-xl gap-1.5 font-heading font-bold"
-            style={{
-              background:
-                currentIndex === questions.length - 1
-                  ? "var(--spark-correct-bg)"
-                  : "var(--primary)",
-              color:
-                currentIndex === questions.length - 1
-                  ? "var(--spark-correct-text)"
-                  : "var(--primary-foreground)",
-            }}
-          >
-            {isCompleting ? (
-              <Loader2 size={12} className="animate-spin" />
-            ) : currentIndex === questions.length - 1 ? (
-              "Finish"
-            ) : (
-              <>
-                Next <ArrowRight size={14} />
-              </>
-            )}
-          </Button>
-        </footer>
       </div>
 
       {/* ══════════════════════════════════════════
@@ -891,7 +525,8 @@ export default function ResumeSessionPage() {
               index={i}
               state={states[i]}
               isCurrent={i === currentIndex}
-              isFlagged={flagged.has(i)}
+              isFlagged={states[i]?.isFlagged ?? false}
+              mode="practice"
               onClick={() => setCurrentIndex(i)}
             />
           ))}
@@ -927,16 +562,16 @@ export default function ResumeSessionPage() {
             </div>
           ))}
           <div className="flex items-center gap-2">
-            <div className="relative w-4 h-4 rounded-md shrink-0" style={{ background: "var(--muted)" }}>
+            <div
+              className="relative w-4 h-4 rounded-md shrink-0"
+              style={{ background: "var(--muted)" }}
+            >
               <span
                 className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full"
                 style={{ background: "rgb(245,158,11)" }}
               />
             </div>
-            <span
-              className="text-xs"
-              style={{ color: "var(--muted-foreground)" }}
-            >
+            <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
               Flagged
             </span>
           </div>
@@ -978,10 +613,7 @@ export default function ResumeSessionPage() {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             className="w-full max-w-sm rounded-3xl p-6 flex flex-col gap-4 border shadow-2xl"
-            style={{
-              background: "var(--card)",
-              borderColor: "var(--border)",
-            }}
+            style={{ background: "var(--card)", borderColor: "var(--border)" }}
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
