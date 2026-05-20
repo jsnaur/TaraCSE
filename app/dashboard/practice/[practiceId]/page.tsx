@@ -17,30 +17,24 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  CheckCircle2,
   XCircle,
   Sparkles,
-  ChevronRight,
   Loader2,
   X,
   Target,
-  ArrowLeft,
-  ArrowRight,
-  Flag,
   Lock,
 } from "lucide-react";
-import { BookmarkButton } from "@/components/ui/bookmark-button";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { MathText } from "@/components/ui/math-text";
 import {
   getUserMonetizationStatus,
   getPracticeQuestions,
-  checkPracticeAnswer,
   saveAnswer,
   completeSession,
 } from "../actions";
 import { getBookmarkStatus } from "@/app/dashboard/bookmarks/actions";
+import { useQuestionSession } from "@/components/question/useQuestionSession";
+import { QuestionPlayer } from "@/components/question/QuestionPlayer";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -53,23 +47,14 @@ type Question = {
   options: Option[];
 };
 
-type QuestionState = {
-  selectedId: string | null;
-  correctId: string | null;
-  explanation: string | null;
-  aiHint: string | null;
-  isChecking: boolean; // For just-in-time backend validation
-};
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function PracticePage() {
   const router = useRouter();
   const params = useParams<{ practiceId: string }>();
-  
+
   // Data State
   const [questions, setQuestions] = useState<Question[]>([]);
-  const [states, setStates] = useState<QuestionState[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -82,52 +67,68 @@ export default function PracticePage() {
   const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
 
   // Session State
-  const [currentIndex, setCurrentIndex] = useState(0);
   const [finished, setFinished] = useState(false);
   const [loadingAi, setLoadingAi] = useState(false);
-  const [flagged, setFlagged] = useState<Set<number>>(new Set());
   const [examSessionId, setExamSessionId] = useState<string | null>(null);
   const [isCompleting, setIsCompleting] = useState(false);
+
   const sessionStartTime = useRef(Date.now());
-  const questionStartTime = useRef(Date.now());
 
-  useEffect(() => {
-    questionStartTime.current = Date.now();
-  }, [currentIndex]);
+  // ── Question Session Hook ─────────────────────────────────────────────────
 
-  // ── Initial Fetch (REPLACES MOCK DATA) ───────────────────────────────────
+  const session = useQuestionSession({
+    mode: "practice",
+    onAnswered: (questionId, selectedId, elapsed) => {
+      if (!examSessionId) return;
+      saveAnswer(examSessionId, questionId, selectedId, elapsed).catch((err) => {
+        console.error("saveAnswer failed", err);
+      });
+    },
+  });
+
+  const {
+    states,
+    currentIndex,
+    setCurrentIndex,
+    initialize,
+    handleSelect,
+    toggleFlag,
+    advance,
+    goPrev,
+    setAiExplanation,
+  } = session;
+
+  // ── Initial Fetch ─────────────────────────────────────────────────────────
+
   useEffect(() => {
     async function loadSession() {
       if (!params.practiceId) return;
 
       const [status, sessionData] = await Promise.all([
         getUserMonetizationStatus(),
-        getPracticeQuestions(params.practiceId)
+        getPracticeQuestions(params.practiceId),
       ]);
 
-      if (status && !status.error) {
+      if (status && !("error" in status)) {
         setIsPremium(status.isPremium);
         setAiUsesLeft(status.isPremium ? "unlimited" : status.remainingAiUses);
       }
 
-      if (sessionData.error || !sessionData.questions) {
-        setErrorMsg(sessionData.error || "Failed to load questions.");
+      if ("error" in sessionData || !sessionData.questions) {
+        setErrorMsg(
+          ("error" in sessionData ? sessionData.error : null) ||
+            "Failed to load questions."
+        );
       } else {
-        setQuestions(sessionData.questions);
+        const qs = sessionData.questions as Question[];
+        setQuestions(qs);
         setExamSessionId(sessionData.examSessionId ?? null);
         sessionStartTime.current = Date.now();
-        questionStartTime.current = Date.now();
-        setStates(
-          sessionData.questions.map(() => ({
-            selectedId: null,
-            correctId: null,
-            explanation: null,
-            aiHint: null,
-            isChecking: false,
-          }))
-        );
 
-        const ids = sessionData.questions.map((q: { id: string }) => q.id);
+        // Initialize hook state
+        initialize(qs.map((q) => q.id));
+
+        const ids = qs.map((q) => q.id);
         if (ids.length > 0) {
           getBookmarkStatus(ids).then((bResult) => {
             if (!("error" in bResult)) {
@@ -140,14 +141,18 @@ export default function PracticePage() {
       setIsLoading(false);
     }
     loadSession();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.practiceId]);
 
-  // Loading & Error States
+  // ── Loading & Error States ────────────────────────────────────────────────
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center">
         <Loader2 className="w-10 h-10 animate-spin text-primary mb-4" />
-        <p className="text-muted-foreground font-medium">Fetching your questions...</p>
+        <p className="text-muted-foreground font-medium">
+          Fetching your questions...
+        </p>
       </div>
     );
   }
@@ -161,8 +166,13 @@ export default function PracticePage() {
               <XCircle className="w-8 h-8" />
             </div>
             <h2 className="text-xl font-bold">Session Error</h2>
-            <p className="text-muted-foreground text-sm">{errorMsg || "No questions available for these categories."}</p>
-            <Button onClick={() => router.push("/dashboard/practice")} className="mt-4 w-full">
+            <p className="text-muted-foreground text-sm">
+              {errorMsg || "No questions available for these categories."}
+            </p>
+            <Button
+              onClick={() => router.push("/dashboard/practice")}
+              className="mt-4 w-full"
+            >
               Return to Setup
             </Button>
           </CardContent>
@@ -171,66 +181,29 @@ export default function PracticePage() {
     );
   }
 
+  // ── Derived values ────────────────────────────────────────────────────────
+
+  const total = questions.length;
   const question = questions[currentIndex];
   const currentState = states[currentIndex];
-  const total = questions.length;
 
-  const isAnswered = currentState.selectedId !== null;
-  const isCorrect = isAnswered && currentState.selectedId === currentState.correctId;
+  // Guard: hook state not yet initialized (question load just completed)
+  if (!currentState || !question) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center">
+        <Loader2 className="w-10 h-10 animate-spin text-primary mb-4" />
+      </div>
+    );
+  }
 
   const checkedCount = states.filter((s) => s.selectedId !== null).length;
-  const score = states.filter((s) => s.selectedId !== null && s.selectedId === s.correctId).length;
+  const score = states.filter(
+    (s) => s.selectedId !== null && s.selectedId === s.correctId
+  ).length;
   const progressValue = (checkedCount / total) * 100;
 
-  // ── Handle Select (Just-In-Time Backend Grading) ──────────────────────────
-  async function handleSelect(id: string) {
-    if (currentState.selectedId !== null || currentState.isChecking) return; 
+  // ── Advance or finish ─────────────────────────────────────────────────────
 
-    // Optimistically lock the UI and show checking spinner
-    setStates((prev) => {
-      const next = [...prev];
-      next[currentIndex] = { ...next[currentIndex], isChecking: true };
-      return next;
-    });
-
-    // Fetch the correct answer and explanation securely from backend
-    const answerData = await checkPracticeAnswer(question.id);
-
-    setStates((prev) => {
-      const next = [...prev];
-      next[currentIndex] = {
-        ...next[currentIndex],
-        selectedId: id,
-        correctId: answerData.correctId || id, // Fallback safety
-        explanation: answerData.explanation || "No explanation available.",
-        isChecking: false
-      };
-      return next;
-    });
-
-    // Persist the answer (fire-and-forget) — server re-derives correctness
-    if (examSessionId) {
-      const elapsed = Math.max(
-        0,
-        Math.round((Date.now() - questionStartTime.current) / 1000),
-      );
-      saveAnswer(examSessionId, question.id, id, elapsed).catch((err) => {
-        console.error("saveAnswer failed", err);
-      });
-    }
-  }
-
-  // ── Flag toggle ──────────────────────────────────────────────────────────
-  function toggleFlag(index: number) {
-    setFlagged((prev) => {
-      const next = new Set(prev);
-      if (next.has(index)) next.delete(index);
-      else next.add(index);
-      return next;
-    });
-  }
-
-  // ── Advance or finish ────────────────────────────────────────────────────
   async function advanceOrFinish() {
     if (currentIndex + 1 >= total) {
       if (isCompleting) return;
@@ -239,7 +212,7 @@ export default function PracticePage() {
         if (examSessionId) {
           const elapsed = Math.max(
             0,
-            Math.round((Date.now() - sessionStartTime.current) / 1000),
+            Math.round((Date.now() - sessionStartTime.current) / 1000)
           );
           await completeSession(examSessionId, total, elapsed);
         }
@@ -250,11 +223,12 @@ export default function PracticePage() {
         setIsCompleting(false);
       }
     } else {
-      setCurrentIndex((i) => i + 1);
+      advance();
     }
   }
 
-  // ── AI Hint & Paywall Logic ──────────────────────────────────────────────
+  // ── AI Hint ───────────────────────────────────────────────────────────────
+
   const handleAiHint = async () => {
     if (!isPremium && typeof aiUsesLeft === "number" && aiUsesLeft <= 0) {
       setShowAiPaywall(true);
@@ -278,43 +252,42 @@ export default function PracticePage() {
       }
 
       if (!res.ok) {
-        const hint = process.env.NODE_ENV === "development" && data.error
-          ? `KOT AI error: ${data.error}`
-          : "KOT AI is unavailable right now. Please try again later.";
-        setStates((prev) => {
-          const next = [...prev];
-          next[currentIndex] = { ...next[currentIndex], aiHint: hint };
-          return next;
-        });
+        const hint =
+          process.env.NODE_ENV === "development" && data.error
+            ? `KOT AI error: ${data.error}`
+            : "KOT AI is unavailable right now. Please try again later.";
+        setAiExplanation(currentIndex, hint);
         return;
       }
 
-      setStates((prev) => {
-        const next = [...prev];
-        next[currentIndex] = { ...next[currentIndex], aiHint: data.response };
-        return next;
-      });
+      setAiExplanation(currentIndex, data.response);
 
       if (typeof data.remaining === "number") {
         setAiUsesLeft(data.remaining);
       }
     } catch {
-      setStates((prev) => {
-        const next = [...prev];
-        next[currentIndex] = {
-          ...next[currentIndex],
-          aiHint: "KOT AI is unavailable right now. Please try again later.",
-        };
-        return next;
-      });
+      setAiExplanation(
+        currentIndex,
+        "KOT AI is unavailable right now. Please try again later."
+      );
     } finally {
       setLoadingAi(false);
     }
   };
 
-  // ── Sidebar grid cell variant ────────────────────────────────────────────
-  function getCellVariant(i: number): "unanswered" | "correct" | "wrong" | "current" | "current-correct" | "current-wrong" {
+  // ── Sidebar grid cell variant ─────────────────────────────────────────────
+
+  function getCellVariant(
+    i: number
+  ):
+    | "unanswered"
+    | "correct"
+    | "wrong"
+    | "current"
+    | "current-correct"
+    | "current-wrong" {
     const s = states[i];
+    if (!s) return "unanswered";
     const isCurrent = i === currentIndex;
     const answered = s.selectedId !== null;
     const correct = answered && s.selectedId === s.correctId;
@@ -328,7 +301,8 @@ export default function PracticePage() {
     return correct ? "correct" : "wrong";
   }
 
-  // ── Finished Screen ──────────────────────────────────────────────────────
+  // ── Finished Screen ───────────────────────────────────────────────────────
+
   if (finished) {
     const pct = Math.round((score / total) * 100);
     const message =
@@ -405,7 +379,8 @@ export default function PracticePage() {
     );
   }
 
-  // ── Main Practice UI ─────────────────────────────────────────────────────
+  // ── Main Practice UI ──────────────────────────────────────────────────────
+
   return (
     <div className="fixed inset-0 z-[100] bg-background lg:grid lg:grid-cols-[1fr_300px] overflow-hidden text-foreground">
 
@@ -415,7 +390,7 @@ export default function PracticePage() {
       <div className="flex flex-col h-full overflow-hidden border-r border-border">
 
         {/* ── Header ── */}
-        <header className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-border bg-background/80 backdrop-blur-md shrink-0">
+        <header className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 border-b border-border bg-background/80 backdrop-blur-md shrink-0">
           <div className="flex items-center gap-4">
             <Button
               variant="ghost"
@@ -439,333 +414,42 @@ export default function PracticePage() {
           </Badge>
         </header>
 
-        {/* ── Scrollable Content ── */}
-        <div className="flex-1 overflow-y-auto">
-          <main className="w-full max-w-3xl mx-auto px-6 py-8 pb-4">
-
-            {/* Mobile progress */}
-            <div className="mb-8 space-y-3 lg:hidden">
-              <div className="flex justify-between items-center text-xs font-semibold text-muted-foreground uppercase tracking-widest">
-                <span>Question {currentIndex + 1} of {total}</span>
-                <span>{checkedCount} Completed</span>
-              </div>
-              <Progress value={progressValue} className="h-1.5" />
+        {/* ── Progress (mobile) ── */}
+        <div className="px-4 pt-4 sm:px-6 lg:hidden shrink-0">
+          <div className="mb-4 space-y-2">
+            <div className="flex justify-between items-center text-xs font-semibold text-muted-foreground uppercase tracking-widest">
+              <span>
+                Question {currentIndex + 1} of {total}
+              </span>
+              <span>{checkedCount} Completed</span>
             </div>
-
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={question.id}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.3, ease: "easeInOut" }}
-              >
-                {/* Question card */}
-                <Card className="rounded-3xl border shadow-sm bg-card mb-6">
-                  <CardContent className="p-8 relative">
-                    <div className="absolute top-4 right-4">
-                      <BookmarkButton
-                        questionId={question.id}
-                        initialBookmarked={bookmarkedIds.has(question.id)}
-                        size="sm"
-                      />
-                    </div>
-                    <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4">
-                      Question {currentIndex + 1}
-                    </p>
-                    <MathText
-                      text={question.text}
-                      block
-                      className="font-heading text-[1.2rem] font-semibold leading-[1.75] text-foreground whitespace-pre-line"
-                    />
-                  </CardContent>
-                </Card>
-
-                {/* ── Options ── */}
-                <div className="space-y-3 mb-8">
-                  {question.options.map((opt) => {
-                    const isSelected = currentState.selectedId === opt.id;
-                    const isRight = opt.id === currentState.correctId;
-                    const locked = isAnswered || currentState.isChecking;
-
-                    let cardClass =
-                      "w-full text-left p-5 rounded-2xl border-[1.5px] transition-all duration-200 flex items-center gap-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ";
-
-                    if (!isAnswered) {
-                      cardClass +=
-                        "cursor-pointer border-border bg-card hover:border-primary/50 hover:bg-muted/50";
-                    } else if (isRight) {
-                      cardClass +=
-                        "cursor-default border-[var(--spark-correct-border)] bg-[var(--spark-correct-bg)] text-[var(--spark-correct-text)]";
-                    } else if (isSelected && !isRight) {
-                      cardClass +=
-                        "cursor-default border-[var(--spark-wrong-border)] bg-[var(--spark-wrong-bg)] text-[var(--spark-wrong-text)]";
-                    } else {
-                      cardClass +=
-                        "cursor-default border-border bg-card opacity-40";
-                    }
-
-                    return (
-                      <button
-                        key={opt.id}
-                        disabled={locked}
-                        onClick={() => handleSelect(opt.id)}
-                        className={cardClass}
-                      >
-                        <span
-                          className={cn(
-                            "w-8 h-8 rounded-xl flex items-center justify-center text-xs font-heading font-bold shrink-0 transition-colors relative",
-                            !isAnswered
-                              ? "bg-muted text-muted-foreground"
-                              : isRight
-                              ? "bg-[var(--spark-correct-text)] text-[var(--spark-correct-bg)]"
-                              : isSelected
-                              ? "bg-[var(--spark-wrong-text)] text-[var(--spark-wrong-bg)]"
-                              : "bg-muted text-muted-foreground"
-                          )}
-                        >
-                          {currentState.isChecking && isSelected ? (
-                            <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                          ) : (
-                            opt.id.toUpperCase()
-                          )}
-                        </span>
-                        <MathText
-                          text={opt.text}
-                          className="font-medium text-sm leading-relaxed flex-1"
-                        />
-                        {isAnswered && isRight && (
-                          <CheckCircle2 className="w-5 h-5 shrink-0 text-[var(--spark-correct-text)]" />
-                        )}
-                        {isAnswered && isSelected && !isRight && (
-                          <XCircle className="w-5 h-5 shrink-0 text-[var(--spark-wrong-text)]" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* ── Explanation card ── */}
-                <AnimatePresence>
-                  {isAnswered && currentState.explanation && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10, scale: 0.98 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, height: 0 }}
-                      transition={{ duration: 0.35, ease: "easeOut" }}
-                      className="mb-8"
-                    >
-                      <Card
-                        className="rounded-2xl border-[1.5px] shadow-sm"
-                        style={{
-                          borderColor: isCorrect
-                            ? "var(--spark-correct-border)"
-                            : "var(--spark-wrong-border)",
-                          background: isCorrect
-                            ? "var(--spark-correct-bg)"
-                            : "var(--spark-wrong-bg)",
-                        }}
-                      >
-                        <CardContent className="p-6 space-y-4">
-                          <div className="flex items-center gap-2">
-                            {isCorrect ? (
-                              <CheckCircle2
-                                className="w-5 h-5"
-                                style={{ color: "var(--spark-correct-text)" }}
-                              />
-                            ) : (
-                              <XCircle
-                                className="w-5 h-5"
-                                style={{ color: "var(--spark-wrong-text)" }}
-                              />
-                            )}
-                            <p
-                              className="font-heading font-bold text-base"
-                              style={{
-                                color: isCorrect
-                                  ? "var(--spark-correct-text)"
-                                  : "var(--spark-wrong-text)",
-                              }}
-                            >
-                              {isCorrect
-                                ? "Tama! That's correct."
-                                : "Hindi tama. Here's why:"}
-                            </p>
-                          </div>
-                          <MathText
-                            text={currentState.explanation}
-                            block
-                            className="text-sm leading-relaxed font-medium"
-                            style={{
-                              color: isCorrect
-                                ? "var(--spark-correct-text)"
-                                : "var(--spark-wrong-text)",
-                              opacity: 0.9,
-                            }}
-                          />
-
-                          {/* AI Hint Section */}
-                          {currentState.aiHint ? (
-                            <motion.div
-                              initial={{ opacity: 0 }}
-                              animate={{ opacity: 1 }}
-                              className="rounded-xl p-4 border-[1.5px] mt-4"
-                              style={{
-                                background: "var(--spark-ai-bg)",
-                                borderColor: "var(--spark-ai-border)",
-                              }}
-                            >
-                              <div
-                                className="flex items-center gap-1.5 mb-1.5"
-                                style={{ color: "var(--spark-ai-text)" }}
-                              >
-                                <Sparkles size={12} />
-                                <span className="text-xs font-bold uppercase tracking-wider">
-                                  KOT AI
-                                </span>
-                              </div>
-                              <MathText
-                                text={currentState.aiHint}
-                                block
-                                className="text-sm font-medium leading-relaxed whitespace-pre-line"
-                                style={{ color: "var(--spark-ai-text)" }}
-                              />
-                            </motion.div>
-                          ) : (
-                            <div className="pt-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={handleAiHint}
-                                disabled={loadingAi}
-                                className="rounded-xl border-[1.5px] font-semibold text-sm transition-all"
-                                style={{
-                                  background: "var(--spark-ai-bg)",
-                                  color: "var(--spark-ai-text)",
-                                  borderColor: "var(--spark-ai-border)",
-                                }}
-                              >
-                                {loadingAi ? (
-                                  <>
-                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                    Analyzing…
-                                  </>
-                                ) : (
-                                  <>
-                                    <Sparkles className="w-4 h-4 mr-2" />
-                                    Ask KOT AI 
-                                    {!isPremium && typeof aiUsesLeft === "number" && (
-                                      <span className="ml-1.5 opacity-60 text-[10px] uppercase tracking-wider font-bold">
-                                        ({aiUsesLeft} left)
-                                      </span>
-                                    )}
-                                  </>
-                                )}
-                              </Button>
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                {/* ── Next / Finish button ── */}
-                <AnimatePresence>
-                  {isAnswered && !currentState.isChecking && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.25, ease: "easeOut" }}
-                      className="mb-4"
-                    >
-                      <Button
-                        size="lg"
-                        className="w-full h-14 rounded-2xl font-heading font-bold text-lg shadow-md group"
-                        onClick={advanceOrFinish}
-                        disabled={isCompleting}
-                      >
-                        {currentIndex + 1 === total ? (
-                          isCompleting ? (
-                            <>
-                              <Loader2 className="mr-2 w-5 h-5 animate-spin" />
-                              Finishing…
-                            </>
-                          ) : (
-                            <>
-                              Finish Practice
-                              <ChevronRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                            </>
-                          )
-                        ) : (
-                          <>
-                            Next Question
-                            <ChevronRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                          </>
-                        )}
-                      </Button>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            </AnimatePresence>
-          </main>
+            <Progress value={progressValue} className="h-1.5" />
+          </div>
         </div>
 
-        {/* ── Navigation Footer ── */}
-        <footer className="px-6 py-4 border-t border-border shrink-0 bg-background">
-          <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
-                disabled={currentIndex === 0}
-                className="gap-1.5"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                Previous
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => toggleFlag(currentIndex)}
-                className={cn(
-                  "gap-1.5 text-muted-foreground",
-                  flagged.has(currentIndex) &&
-                    "text-amber-600 hover:text-amber-700"
-                )}
-                title={
-                  flagged.has(currentIndex) ? "Remove flag" : "Flag for review"
-                }
-              >
-                <Flag
-                  className={cn(
-                    "w-3.5 h-3.5",
-                    flagged.has(currentIndex) && "fill-current"
-                  )}
-                />
-                <span className="hidden sm:inline">
-                  {flagged.has(currentIndex) ? "Flagged" : "Flag"}
-                </span>
-              </Button>
-            </div>
-
-            <Button
-              onClick={() =>
-                setCurrentIndex((i) => Math.min(total - 1, i + 1))
-              }
-              disabled={currentIndex === total - 1}
-              className="gap-1.5 font-heading font-bold"
-            >
-              Next
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Button>
-          </div>
-        </footer>
-
-        <div className="lg:hidden h-20" />
+        {/* ── QuestionPlayer (scrollable content + sticky footer) ── */}
+        <div className="flex-1 overflow-hidden">
+          <QuestionPlayer
+            question={question}
+            state={currentState}
+            mode="practice"
+            questionNumber={currentIndex + 1}
+            totalQuestions={total}
+            canGoPrev={currentIndex > 0}
+            canGoNext={currentIndex < total - 1 || !isCompleting}
+            onSelect={handleSelect}
+            onPrev={goPrev}
+            onNext={advanceOrFinish}
+            onToggleFlag={() => toggleFlag(currentIndex)}
+            isBookmarked={bookmarkedIds.has(question.id)}
+            onRequestAiHint={
+              currentState.correctId !== null ? handleAiHint : undefined
+            }
+            loadingAi={loadingAi}
+            isPremium={isPremium}
+            aiUsesLeft={aiUsesLeft}
+          />
+        </div>
       </div>
 
       {/* ════════════════════════════════════════
@@ -796,13 +480,13 @@ export default function PracticePage() {
           <div className="grid grid-cols-5 gap-1.5">
             {questions.map((_, i) => {
               const variant = getCellVariant(i);
-              const isFlagged = flagged.has(i);
+              const isFlagged = states[i]?.isFlagged ?? false;
 
               return (
                 <button
                   key={i}
                   onClick={() => setCurrentIndex(i)}
-                  title={`Q${i + 1}${states[i].selectedId !== null ? " · answered" : ""}${isFlagged ? " · flagged" : ""}`}
+                  title={`Q${i + 1}${states[i]?.selectedId !== null ? " · answered" : ""}${isFlagged ? " · flagged" : ""}`}
                   className={cn(
                     "relative aspect-square rounded-lg text-xs font-bold",
                     "transition-all duration-100",
@@ -888,16 +572,20 @@ export default function PracticePage() {
         </div>
       </aside>
 
-      {/* ── KOT AI Paywall Modal ────────────────────────────────────────── */}
+      {/* ── KOT AI Paywall Modal ──────────────────────────────────────────── */}
       <AlertDialog open={showAiPaywall} onOpenChange={setShowAiPaywall}>
         <AlertDialogContent className="rounded-[32px] sm:rounded-[32px] max-w-sm">
           <AlertDialogHeader>
             <div className="mx-auto bg-primary/10 w-16 h-16 rounded-full flex items-center justify-center mb-4">
               <Lock className="text-primary w-8 h-8" />
             </div>
-            <AlertDialogTitle className="font-heading text-2xl text-center">AI Limit Reached</AlertDialogTitle>
+            <AlertDialogTitle className="font-heading text-2xl text-center">
+              AI Limit Reached
+            </AlertDialogTitle>
             <AlertDialogDescription className="text-center text-base">
-              You've used all your free KOT AI explanations! Unlock unlimited step-by-step AI assistance and the full question bank for only ₱99.
+              You've used all your free KOT AI explanations! Unlock unlimited
+              step-by-step AI assistance and the full question bank for only
+              ₱99.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="sm:justify-center sm:space-x-3 mt-4 flex-col gap-2">
@@ -913,7 +601,6 @@ export default function PracticePage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
     </div>
   );
 }
